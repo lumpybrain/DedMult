@@ -6,13 +6,17 @@
 #include "Net/UnrealNetwork.h"	// DOREPLIFETIME
 
 
-// ----------------------------------------------------------------------------
+/******************************************************************************
+ * Constructor: enable replication
+******************************************************************************/
 ADMShip::ADMShip(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	bReplicates = true;
 }
 
-// ----------------------------------------------------------------------------
+/******************************************************************************
+ * Replication
+******************************************************************************/
 void ADMShip::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const /*override*/
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);

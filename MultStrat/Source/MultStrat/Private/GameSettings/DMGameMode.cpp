@@ -6,7 +6,11 @@
 #include "Commands\DMCommand.h"			// UDMCommand
 
 
-// ----------------------------------------------------------------------------
+/******************************************************************************
+ * AGameModeBase Override
+ * 
+ * Set up ADMGameState too 
+******************************************************************************/
 void ADMGameMode::InitGameState() /* override */
 {
 	Super::InitGameState();
@@ -14,11 +18,15 @@ void ADMGameMode::InitGameState() /* override */
 	if (ADMGameState* Currstate = Cast<ADMGameState>(GameState))
 	{
 		Currstate->CurrentTeamData = TeamDataAsset;
-		Currstate->ShipSpawnZOffset = ShipSpawnZOffset;
 		Currstate->NextNewTeam = EDMPlayerTeam::TeamOne;
 	}
 }
-// ----------------------------------------------------------------------------
+
+/******************************************************************************
+ * AGameModeBase Override
+ *
+ * Check max # of players before allowing a login
+******************************************************************************/
 void ADMGameMode::PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage) /* override */
 {
 	if (GetNumPlayers() >= MaxNumPlayers)
@@ -30,7 +38,11 @@ void ADMGameMode::PreLogin(const FString& Options, const FString& Address, const
 	Super::PreLogin(Options, Address, UniqueId, ErrorMessage);
 }
 
-// ----------------------------------------------------------------------------
+/******************************************************************************
+ * AGameModeBase Override
+ *
+ * Register the new player to the ADMGameState
+******************************************************************************/
 void ADMGameMode::PostLogin(APlayerController* NewPlayer) /* override */
 {
 	Super::PostLogin(NewPlayer);
@@ -41,7 +53,11 @@ void ADMGameMode::PostLogin(APlayerController* NewPlayer) /* override */
 	}
 }
 
-// ----------------------------------------------------------------------------
+/******************************************************************************
+ * AGameMode Override
+ *
+ * Unregister the player from the ADMGameState
+******************************************************************************/
 void ADMGameMode::Logout(AController* Exiting) /* override */
 {
 	if (ADMGameState* CurrState = Cast<ADMGameState>(GameState))
@@ -52,8 +68,15 @@ void ADMGameMode::Logout(AController* Exiting) /* override */
 	Super::Logout(Exiting);
 }
 
-// ----------------------------------------------------------------------------
-uint8 ADMGameMode::GetPriorityForCommand(UDMCommand* Command)
+/*/////////////////////////////////////////////////////////////////////////////
+*	Properties and Accessors //////////////////////////////////////////////////
+*//////////////////////////////////////////////////////////////////////////////
+
+/******************************************************************************
+ * Check the command data asset for a priority for the command's class
+ * returns the priority if found, 0 if none found (lowest possible priority)
+******************************************************************************/
+uint8 ADMGameMode::GetPriorityForCommand(const TSubclassOf<UDMCommand> Command) const
 {
 	if (!IsValid(CommandsDataAsset))
 	{
@@ -61,7 +84,7 @@ uint8 ADMGameMode::GetPriorityForCommand(UDMCommand* Command)
 		return 0;
 	}
 
-	uint8* result = CommandsDataAsset->CommandPriorities.Find(Command->GetClass());
+	uint8* result = CommandsDataAsset->CommandPriorities.Find(Command);
 
 	if (result != nullptr)
 	{
@@ -74,8 +97,10 @@ uint8 ADMGameMode::GetPriorityForCommand(UDMCommand* Command)
 	}
 }
 
-// ----------------------------------------------------------------------------
-TSubclassOf<ADMShip> ADMGameMode::GetDefaultShip()
+/******************************************************************************
+ * Check the command data asset for the default ship class
+******************************************************************************/
+TSubclassOf<ADMShip> ADMGameMode::GetDefaultShip() const
 {
 	if (!IsValid(CommandsDataAsset))
 	{
@@ -84,4 +109,18 @@ TSubclassOf<ADMShip> ADMGameMode::GetDefaultShip()
 	}
 
 	return CommandsDataAsset->DefaultShip;
+}
+
+/******************************************************************************
+ * Check the Command data asset for the default ship spawn Z offset
+******************************************************************************/
+float ADMGameMode::GetShipSpawnZOffset() const
+{
+	if (!IsValid(CommandsDataAsset))
+	{
+		UE_LOG(LogTemp, Error, TEXT("ADMGameMode::GetShipSpawnZOffset: Game Mode does not have a valid Command data asset!"))
+		return 0.0f;
+	}
+
+	return CommandsDataAsset->ShipSpawnZOffset;
 }

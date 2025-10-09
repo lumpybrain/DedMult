@@ -12,7 +12,10 @@ class UTeamDataAsset;
 enum class EDMPlayerTeam : uint8;
 
 /**
+ * DMGameState is responsible for managing players and their teams
  * 
+ * DMTODO: DMGameState should contain information on all previous turn's for
+ * players to do local rewinds
  */
 UCLASS()
 class MULTSTRAT_API ADMGameState : public AGameState
@@ -20,30 +23,37 @@ class MULTSTRAT_API ADMGameState : public AGameState
 	GENERATED_BODY()
 
 public:
-	// Replicate
+	/** Replication */
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	//~=============================================================================
+	// Player Management
+
+	/** Set the players new team */
+	virtual void RegisterPlayerState(APlayerState* PlayerState);
+
+	/** Remove the players team */
+	virtual void UnregisterPlayerState(APlayerState* PlayerState);
+
+	//~=============================================================================
+	// Properties and Accessors
+
+	/** Determines color for a player based on their current team */
 	UFUNCTION(BlueprintCallable)
 	void GetColorForPlayer(APlayerState* PlayerState, FColor& Output);
 
-	UFUNCTION(BlueprintCallable)
-	float GetDefaultShipFloatHeight() { return ShipSpawnZOffset; }
-
+	/** 
+	 * Checks registered players for a one who is on the given team 
+	 * returns the player if found, nullptr otherwise
+	 */
 	UFUNCTION(BlueprintCallable)
 	ADMPlayerState* GetPlayerForTeam(EDMPlayerTeam Team);
 
-	/** Add PlayerState to the PlayerArray */
-	virtual void RegisterPlayerState(APlayerState* PlayerState);
-
-	/** Remove PlayerState from the PlayerArray. */
-	virtual void UnregisterPlayerState(APlayerState* PlayerState);
-
+	/** Pointer to team data asset, initialized from ADMGameMode on startup */
 	UPROPERTY(Transient, Replicated)
 	TObjectPtr<UTeamDataAsset> CurrentTeamData;
 
-	UPROPERTY(Transient, Replicated)
-	float ShipSpawnZOffset = 50.0f;
-
+	/** When a player joins, they will be given this team */
 	UPROPERTY(Replicated)
 	EDMPlayerTeam NextNewTeam;
 	

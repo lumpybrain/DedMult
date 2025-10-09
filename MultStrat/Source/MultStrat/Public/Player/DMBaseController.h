@@ -7,7 +7,7 @@
 #include "DMBaseController.generated.h"
 
 /**
- * 
+ * Shell for now in case we get silly later
  */
 UCLASS()
 class MULTSTRAT_API ADMBaseController : public APlayerController

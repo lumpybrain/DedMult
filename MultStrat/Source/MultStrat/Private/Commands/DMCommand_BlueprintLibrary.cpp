@@ -8,44 +8,66 @@
 #include "Commands/DMCommandQueueSubsystem.h"	// LogCommands
 #include "Player/DMPlayerState.h"				// ADMPlayerState
 
+/*/////////////////////////////////////////////////////////////////////////////
+*	Build Ship Command ////////////////////////////////////////////////////////
+*//////////////////////////////////////////////////////////////////////////////
 
-bool UDMCommand_BlueprintLibrary::ValidateCommand_BuildShip(ADMPlayerState* RequestingPlayer, ADMPlanet* PlanetToBuildOn, FString& OutFailString)
+/******************************************************************************
+ * Is a buildShip command valid for the given inputs?
+ * true if a build ship command is possible, false otherwise
+ * OutFailString is filled with a debug reason for failure
+******************************************************************************/
+bool UDMCommand_BlueprintLibrary::TrialCommand_BuildShip(const ADMPlayerState* pRequestingPlayer, const ADMPlanet* pPlanetToBuildOn, FString& OutFailString)
 {
-	if (!IsValid(RequestingPlayer))
+	// Player must be valid
+	if (!IsValid(pRequestingPlayer))
 	{
-		OutFailString = "Invalid RequestingPlayer passed in";
+		OutFailString = TEXT("Invalid RequestingPlayer passed in");
 		return false;
 	}
-	if (!IsValid(PlanetToBuildOn))
+	// Planet must be valid
+	if (!IsValid(pPlanetToBuildOn))
 	{
-		OutFailString = "Invalid PlanetToBuildOn passed in";
+		OutFailString = TEXT("Invalid PlanetToBuildOn passed in");
 		return false;
 	}
-	if (PlanetToBuildOn->OwningTeam != RequestingPlayer->CurrTeam)
+	// Player and Planet must be the same team
+	if (pPlanetToBuildOn->OwningTeam != pRequestingPlayer->CurrTeam)
 	{
-		OutFailString = FString::Printf(TEXT("Player %s wants to build on planet %s, but they are on seperate teams!"), *RequestingPlayer->GetName(), *PlanetToBuildOn->GetName());
+		OutFailString = FString::Printf(TEXT("Player %s wants to build on planet %s, but they are on seperate teams!"), 
+				*pRequestingPlayer->GetName(), 
+				*pPlanetToBuildOn->GetName());
 		return false;
 	}
-	if (PlanetToBuildOn->K2_HasShip())
+	// No doubling on ships!
+	if (pPlanetToBuildOn->K2_HasShip())
 	{
-		OutFailString = FString::Printf(TEXT("Player %s wants to build on planet %s, but that planet already has a ship!"), *RequestingPlayer->GetName(), *PlanetToBuildOn->GetName());
+		OutFailString = FString::Printf(TEXT("Player %s wants to build on planet %s, but that planet already has a ship!"),
+				*pRequestingPlayer->GetName(),
+				*pPlanetToBuildOn->GetName());
 		return false;
 	}
 
 	return true;
 }
 
-UDMCommand_BuildShip* UDMCommand_BlueprintLibrary::MakeCommand_BuildShip(ADMPlayerState* RequestingPlayer, ADMPlanet* PlanetToBuildOn)
+/******************************************************************************
+ * Build the BuildShip command
+ * returns the constructed command, or a nullptr if an error occurred
+******************************************************************************/
+UDMCommand_BuildShip* UDMCommand_BlueprintLibrary::MakeCommand_BuildShip(ADMPlayerState* pRequestingPlayer, ADMPlanet* pPlanetToBuildOn)
 {
+	// Can we?
 	FString FailureOutput;
-	if (!ValidateCommand_BuildShip(RequestingPlayer, PlanetToBuildOn, FailureOutput))
+	if (!TrialCommand_BuildShip(pRequestingPlayer, pPlanetToBuildOn, FailureOutput))
 	{
 		UE_LOG(LogCommands, Warning, TEXT("UDMCommand_BlueprintLibrary::MakeCommand_BuildShip: %s"), *FailureOutput)
 		return nullptr;
 	}
 
+	// Build it
 	UDMCommand_BuildShip* NewBuildCommand = NewObject<UDMCommand_BuildShip>();
-	NewBuildCommand->InitializeCommand(RequestingPlayer, PlanetToBuildOn);
+	NewBuildCommand->InitializeCommand(pRequestingPlayer, pPlanetToBuildOn);
 	return NewBuildCommand;
 }
 

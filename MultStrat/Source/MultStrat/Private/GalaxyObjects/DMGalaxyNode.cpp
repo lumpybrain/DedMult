@@ -10,20 +10,32 @@
 
 DEFINE_LOG_CATEGORY(LogGalaxy);
 
-// ----------------------------------------------------------------------------
+/******************************************************************************
+ * Constructor: Enable Replication
+******************************************************************************/
 ADMGalaxyNode::ADMGalaxyNode(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
+	bReplicates = true;
 	ConnectionManagerComponent = CreateDefaultSubobject<UDMNodeConnectionManager>(TEXT("ConnectionManager"));
 }
 
-// ----------------------------------------------------------------------------
+/******************************************************************************
+ * Replication
+******************************************************************************/
 void ADMGalaxyNode::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const /* override */
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ADMGalaxyNode, CurrentShip);
 }
-// ----------------------------------------------------------------------------
+
+/*/////////////////////////////////////////////////////////////////////////////
+*	Command Functions /////////////////////////////////////////////////////////
+*//////////////////////////////////////////////////////////////////////////////
+
+/******************************************************************************
+ * Resolve all pending ships after all the commands have executed for a turn
+******************************************************************************/
 void ADMGalaxyNode::ResolveTurn()
 {
 	// Map of all teams trying to take control of the planet; mapping their team to the main attacking ship and the total power of their fleet
@@ -117,6 +129,7 @@ void ADMGalaxyNode::ResolveTurn()
 		}
 	}
 
+	// Declare the winner!
 	if (WinningShip != nullptr)
 	{
 		// debug
@@ -128,21 +141,19 @@ void ADMGalaxyNode::ResolveTurn()
 
 		if (IsValid(CurrentShip) && CurrentShip != WinningShip)
 		{
-			// TO DO: Ship Retreats
+			// DMTODO: Ship Retreats
 			CurrentShip->Destroy();
 		}
 
 		SetCurrentShip(WinningShip);
 	}
 }
-// ----------------------------------------------------------------------------
-bool ADMGalaxyNode::K2_HasIncomingShip(FString& OutOwningCommandDebug) const
-{
-	OutOwningCommandDebug = IsValid(IncomingShipCommand) ? IncomingShipCommand->CommandDebug() : TEXT("None");
-	return IncomingShip;
-}
 
-// ----------------------------------------------------------------------------
+/******************************************************************************
+ * Used by a team to register a ship is incoming
+ * Only matters to the local player, so they can't do multiple commands to send
+ *		a ship to one node
+******************************************************************************/
 bool ADMGalaxyNode::SetIncomingShip(bool Incoming, UDMCommand* NewOwningCommand)
 {
 	if (!IsValid(NewOwningCommand))
@@ -153,7 +164,7 @@ bool ADMGalaxyNode::SetIncomingShip(bool Incoming, UDMCommand* NewOwningCommand)
 			IncomingShip ? TEXT("True") : TEXT("False"),
 			IsValid(IncomingShipCommand) ? *FString::Printf(TEXT(" (%s)"), *IncomingShipCommand->CommandDebug()) : TEXT(""))
 
-		return false;
+			return false;
 	}
 
 	if (Incoming)
@@ -162,15 +173,15 @@ bool ADMGalaxyNode::SetIncomingShip(bool Incoming, UDMCommand* NewOwningCommand)
 		{
 			// It shouldn't be possible for the command to be invalid but the bool to be true; let this crash loud for now
 			UE_LOG(LogGalaxy, Error, TEXT("%s: Command \"%s\" tried to own IncomingShip, but it is already owned by command \"%s\"."),
-				*GetName(), 
+				*GetName(),
 				*NewOwningCommand->CommandDebug(),
 				*IncomingShipCommand->CommandDebug())
 
-			return false;
+				return false;
 		}
 
 		UE_LOG(LogGalaxy, Display, TEXT("%s: Incoming Ship from Command \"%s\"."),
-			*GetName(), 
+			*GetName(),
 			*NewOwningCommand->CommandDebug())
 	}
 	else
@@ -178,7 +189,7 @@ bool ADMGalaxyNode::SetIncomingShip(bool Incoming, UDMCommand* NewOwningCommand)
 		if (!IncomingShip)
 		{
 			UE_LOG(LogGalaxy, Warning, TEXT("%s: Command \"%s\" is clearing Incoming Ship, but no ship was incoming."),
-				*GetName(), 
+				*GetName(),
 				*NewOwningCommand->CommandDebug())
 		}
 		else if (NewOwningCommand != IncomingShipCommand)
@@ -188,7 +199,7 @@ bool ADMGalaxyNode::SetIncomingShip(bool Incoming, UDMCommand* NewOwningCommand)
 				*NewOwningCommand->CommandDebug(),
 				*IncomingShipCommand->CommandDebug())
 
-			return false;
+				return false;
 		}
 		else
 		{
@@ -197,13 +208,15 @@ bool ADMGalaxyNode::SetIncomingShip(bool Incoming, UDMCommand* NewOwningCommand)
 				*NewOwningCommand->CommandDebug())
 		}
 	}
-	
+
 	IncomingShipCommand = NewOwningCommand;
 	IncomingShip = Incoming;
 	return true;
 }
 
-// ----------------------------------------------------------------------------
+/******************************************************************************
+ * Used by commands to remove the current ship
+******************************************************************************/
 void ADMGalaxyNode::RemoveShip(UDMCommand* OwningCommand)
 {
 	// A ship is being spawned here: moving ships 
@@ -217,7 +230,9 @@ void ADMGalaxyNode::RemoveShip(UDMCommand* OwningCommand)
 	CurrentShip = nullptr;
 }
 
-// ----------------------------------------------------------------------------
+/******************************************************************************
+ * Used by commands to register a ship trying to move to this planet for turn
+******************************************************************************/
 bool ADMGalaxyNode::AddPendingShip(ADMShip* NewShip, bool Supporting, UDMCommand* OwningCommand)
 {
 	if (!IsValid(NewShip))
@@ -226,14 +241,30 @@ bool ADMGalaxyNode::AddPendingShip(ADMShip* NewShip, bool Supporting, UDMCommand
 			*GetName(),
 			IsValid(OwningCommand) ? *OwningCommand->CommandDebug() : TEXT("INVALID COMMAND"))
 
-		return false;
+			return false;
 	}
 
 	PendingShips.Add(TPair<TObjectPtr<ADMShip>, bool>(NewShip, Supporting));
 	return true;
 }
 
-// ----------------------------------------------------------------------------
+/*/////////////////////////////////////////////////////////////////////////////
+*	Query/Write Functions /////////////////////////////////////////////////////
+*//////////////////////////////////////////////////////////////////////////////
+
+/******************************************************************************
+ * Gettor with debug output
+******************************************************************************/
+bool ADMGalaxyNode::K2_HasIncomingShip(FString& OutOwningCommandDebug) const
+{
+	OutOwningCommandDebug = IsValid(IncomingShipCommand) ? IncomingShipCommand->CommandDebug() : TEXT("None");
+	return IncomingShip;
+}
+
+/******************************************************************************
+ * A ship has moved here, conquered here, been built here, etc.
+ * Physically move it and claim it.
+******************************************************************************/
 void ADMGalaxyNode::SetCurrentShip(ADMShip* NewShip)
 {
 	if (!HasAuthority())

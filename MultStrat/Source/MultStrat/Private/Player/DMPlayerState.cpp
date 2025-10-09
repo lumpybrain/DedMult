@@ -6,7 +6,9 @@
 #include "Commands\DMCommandQueueSubsystem.h"	// UDMCommandQueueSubsystem
 #include "Net/UnrealNetwork.h"					// DOREPLIFETIME
 
-// ----------------------------------------------------------------------------
+/******************************************************************************
+ * Replication
+******************************************************************************/
 void ADMPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const /*override*/
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -15,8 +17,11 @@ void ADMPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 }
 
 
-// ----------------------------------------------------------------------------
-void ADMPlayerState::RequestCommand_Implementation(UDMCommand* Command)
+/******************************************************************************
+ * Queue a Command in the Command Queue Subsystem
+ * Run on the server because thats where the subsystem is
+******************************************************************************/
+void ADMPlayerState::QueueCommand_Implementation(UDMCommand* Command)
 {
 	UWorld* World = GetWorld();
 	UDMCommandQueueSubsystem* CommandQueue = World != nullptr ? World->GetSubsystem<UDMCommandQueueSubsystem>() : nullptr;
@@ -26,5 +31,5 @@ void ADMPlayerState::RequestCommand_Implementation(UDMCommand* Command)
 		return;
 	}
 
-	CommandQueue->RequestCommand(Command);
+	CommandQueue->RegisterCommand(Command);
 }

@@ -7,40 +7,60 @@
 #include "GalaxyObjects\DMGalaxyNode.h"			// ADMGalaxyNode
 #include "Player/DMPlayerState.h"				// ADMPlayerState
 
-// ----------------------------------------------------------------------------
-bool UDMCommand::RunCommand() const
+/*/////////////////////////////////////////////////////////////////////////////
+*	Command Queue Subsystem Functions /////////////////////////////////////////
+*//////////////////////////////////////////////////////////////////////////////
+
+/******************************************************************************
+ * Command executes on its target; presumed to be only be run by CommandQueueSubsystem
+ * returns true if command executes successfully
+******************************************************************************/
+bool UDMCommand::RunCommand_Implementation() const
 { 
 	UE_LOG(LogCommands, Warning, TEXT("Class %s Tried to run despite not having a written Run Command! Curse you, Unreal Abstract Classes!"), *GetClass()->GetFName().ToString())
 	return false;
 }
 
-// ----------------------------------------------------------------------------
-bool UDMCommand::InitializeCommand(ADMPlayerState* RequestingPlayer, ADMGalaxyNode* Target)
+/******************************************************************************
+ * Overrideable IsValid method; makes sure the command can still execute in the current gamestate
+ * returns true if command can be run successfully
+******************************************************************************/
+bool UDMCommand::Validate_Implementation() const
 {
-	if (!IsValid(RequestingPlayer) || !IsValid(Target))
-	{
-		return false;
-	}
-
-	OwningPlayer = RequestingPlayer;
-	TargetNode = Target;
-
-	return true;
+	return IsValid(pOwningPlayer) && IsValid(pTargetNode);
 }
 
-// ----------------------------------------------------------------------------
-bool UDMCommand::Validate() const
-{ 
-	return IsValid(OwningPlayer) && IsValid(TargetNode);
-}
-
-// ----------------------------------------------------------------------------
+/******************************************************************************
+ * ID Settor with debug
+******************************************************************************/
 void UDMCommand::SetID(uint16 NewID)
 {
 	if (CommandID != 0)
 	{
-		UE_LOG(LogCommands, Warning, TEXT("Log %d was assigned a new ID despite having an assigned ID (Class: %s"), CommandID, *GetClass()->GetFName().ToString())
+		UE_LOG(LogCommands, Warning, TEXT("Command \"%s\" was assigned a new ID despite having an assigned ID (Old: %d. New: %d)"), *GetClass()->GetFName().ToString(), CommandID, NewID)
 	}
 
 	CommandID = NewID;
+}
+
+/*/////////////////////////////////////////////////////////////////////////////
+*	Command Management Functions //////////////////////////////////////////////
+*//////////////////////////////////////////////////////////////////////////////
+
+/******************************************************************************
+ * Command Initializes the command's target and owning player; those targets
+ *		may have flags modified by the command.
+ * returns true if the input is valid
+******************************************************************************/
+bool UDMCommand::InitializeCommand_Implementation(ADMPlayerState* pRequestingPlayer, ADMGalaxyNode* pTarget)
+{
+	if (!IsValid(pRequestingPlayer) || !IsValid(pTarget))
+	{
+		return false;
+	}
+
+	pOwningPlayer = pRequestingPlayer;
+	pTargetNode = pTarget;
+
+	return true;
 }

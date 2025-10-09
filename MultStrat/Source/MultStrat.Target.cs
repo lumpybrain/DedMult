@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+// Copied and renamed version of LyraGame.Target.cs included in unreal's lyra distribution
+// https://dev.epicgames.com/documentation/en-us/unreal-engine/lyra-sample-game-in-unreal-engine
+
 using UnrealBuildTool;
 using System;
 using System.IO;

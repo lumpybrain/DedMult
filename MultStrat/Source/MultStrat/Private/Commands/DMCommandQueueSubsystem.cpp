@@ -4,13 +4,15 @@
 #include "Commands/DMCommandQueueSubsystem.h"
 
 #include "Commands/DMCommand.h"			// UDMCommand
-#include "GameSettings/DMGameMode.h"	// ADMGameMode
+#include "GameSettings/DMGameMode.h"	// ADMGameMode, EDMPlayerTeam
 #include "Player/DMPlayerState.h"		// ADMPlayerState
 
 DEFINE_LOG_CATEGORY(LogCommands);
 
-// ----------------------------------------------------------------------------
-// https://forums.unrealengine.com/t/subsystem-only-on-server/645021/5
+/******************************************************************************
+ * UWorldSubsystem override; only build this subsystem on the server
+ * https://forums.unrealengine.com/t/subsystem-only-on-server/645021/5
+******************************************************************************/
 bool UDMCommandQueueSubsystem::ShouldCreateSubsystem(UObject* Outer) const /* override */
 {
 	if (!Super::ShouldCreateSubsystem(Outer))
@@ -23,12 +25,16 @@ bool UDMCommandQueueSubsystem::ShouldCreateSubsystem(UObject* Outer) const /* ov
 	return World->GetNetMode() < NM_Client; 
 }
 
-// ----------------------------------------------------------------------------
-void UDMCommandQueueSubsystem::ExecuteCommands()
-{
-	// Reset Command IDs
-	CommandNumForTurn = 0;
+/*/////////////////////////////////////////////////////////////////////////////
+*	Command Processing Functions //////////////////////////////////////////////
+*//////////////////////////////////////////////////////////////////////////////
 
+/******************************************************************************
+ * Executes all the commands for turn. Should only be executed when
+ *		all players are marked as turn submitted.
+******************************************************************************/
+void UDMCommandQueueSubsystem::ExecuteCommandsForTurn()
+{
 	// Higher priority commands first
 	ActiveCommands.Sort([](const UDMCommand& first, const UDMCommand& second)
 	{
@@ -49,60 +55,66 @@ void UDMCommandQueueSubsystem::ExecuteCommands()
 		Command->CommandUnregistered();
 	}
 
+	// prepare for next turn
+	CommandNumForTurn = 1;
 	ActiveCommands.Empty();
 }
 
-// ----------------------------------------------------------------------------
-int UDMCommandQueueSubsystem::RequestCommand(UDMCommand* Command)
+/******************************************************************************
+ * Registers a command with the subsystem.
+ * Returns the command ID to be stored if a command is requested to be cancelled
+******************************************************************************/
+int UDMCommandQueueSubsystem::RegisterCommand(UDMCommand* Command)
 {
 	if (!IsValid(Command))
 	{
-		UE_LOG(LogCommands, Warning, TEXT("UDMCommandQueueSubsystem::RequestCommand: Null Command Requested!"))
+		UE_LOG(LogCommands, Warning, TEXT("UDMCommandQueueSubsystem::RegisterCommand: Null Command Requested!"))
 		return 0;
 	}
-
 	if (!Command->Validate())
 	{
-		UE_LOG(LogCommands, Warning, TEXT("UDMCommandQueueSubsystem::RequestCommand: Command Invalid! (Was it initialized properly?)"))
+		UE_LOG(LogCommands, Warning, TEXT("UDMCommandQueueSubsystem::RegisterCommand: Command Invalid! (Was it initialized properly?)"))
 		return 0;
 	}
 
 	// get the priority for the command set properly
 	UWorld* World = GetWorld();
 	ADMGameMode* GameMode = IsValid(World) ? Cast<ADMGameMode>(World->GetAuthGameMode()) : nullptr;
-	
 	ensure(IsValid(GameMode));
 	if (IsValid(GameMode))
 	{
-		Command->Priority = GameMode->GetPriorityForCommand(Command);
+		Command->Priority = GameMode->GetPriorityForCommand(Command->GetClass());
 	}
 
 
-	// register
+	// register with subsystem
 	Command->SetID(CommandNumForTurn);
 	++CommandNumForTurn;
 
 	ActiveCommands.Add(Command);
 	Command->CommandRegistered();
 
-	UE_LOG(LogCommands, Display, TEXT("Command for player %s registered (%s)"), *Command->GetOwningPlayer()->GetName(), *Command->CommandDebug())
+	UE_LOG(LogCommands, Display, TEXT("Command for player %s registered (%s)"), 
+			*Command->GetOwningPlayer()->GetName(), 
+			*Command->CommandDebug())
 
 	return Command->GetID();
 }
 
-// ----------------------------------------------------------------------------
+/******************************************************************************
+ * Unregisters a command with the subsystem.
+ * Returns if the command was succesfully cancelled 
+		(i.e, maybe the wrong player requesting cancellation)
+******************************************************************************/
 bool UDMCommandQueueSubsystem::CancelCommand(const ADMPlayerState* Player, int CommandID)
 {
-	// Remove a command if it is found, and if the right player owns it
 	for (int i = 0; i < ActiveCommands.Num(); ++i)
 	{
-		if (!ActiveCommands[i]->Validate())
-		{
-			continue;
-		}
 		if (ActiveCommands[i]->GetID() == CommandID)
 		{
 			const ADMPlayerState* CommandPlayer = ActiveCommands[i]->GetOwningPlayer();
+			
+			// Is the right player trying to cancel?
 			if (ActiveCommands[i]->GetOwningPlayer()->GetPlayerId() != Player->GetPlayerId())
 			{
 				UE_LOG(LogCommands, Warning, TEXT("Player %s just tried to cancel Command Key %d, owned by player %s! (Command: %s)"),
@@ -110,6 +122,7 @@ bool UDMCommandQueueSubsystem::CancelCommand(const ADMPlayerState* Player, int C
 				
 				return false;
 			}
+			// We're good; cancel it
 			else
 			{
 				UE_LOG(LogCommands, Warning, TEXT("Player %s just cancelled Command %s "), *CommandPlayer->GetName(),
