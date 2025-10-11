@@ -3,8 +3,9 @@
 
 #include "GameSettings/DMGameState.h"
 
+#include "Components/DMTeamComponent.h"	// UDMTeamComponent, EDMPlayerTeam
 #include "GameFramework/PlayerState.h"	// APlayerState
-#include "GameSettings/DMGameMode.h"	// EDMPlayerTeam, UTeamDataAsset
+#include "GameSettings/DMGameMode.h"	// UTeamDataAsset
 #include "Net/UnrealNetwork.h"			// DOREPLIFETIME
 #include "Player/DMPlayerState.h"		// ADMPlayerState
 
@@ -38,7 +39,7 @@ void ADMGameState::RegisterPlayerState(APlayerState* PlayerState) /* override */
 	}
 
 	// DMTODO: Proper Team Registration!
-	DMPlayerState->CurrTeam = NextNewTeam;
+	DMPlayerState->TeamComponent->SetTeam(NextNewTeam);
 	NextNewTeam = (EDMPlayerTeam)((uint8)NextNewTeam + 1);
 }
 
@@ -55,7 +56,7 @@ void ADMGameState::UnregisterPlayerState(APlayerState* PlayerState) /* override 
 		return;
 	}
 
-	DMPlayerState->CurrTeam = EDMPlayerTeam::Unowned;
+	DMPlayerState->TeamComponent->SetTeam(EDMPlayerTeam::Unowned);
 }
 
 /*/////////////////////////////////////////////////////////////////////////////
@@ -81,7 +82,7 @@ void ADMGameState::GetColorForPlayer(APlayerState* PlayerState, FColor& Output)
 		return;
 	}
 
-	FColor* TeamColor = CurrentTeamData->PlayerColors.Find(DMPlayerState->CurrTeam);
+	FColor* TeamColor = CurrentTeamData->PlayerColors.Find(DMPlayerState->TeamComponent->GetTeam());
 
 	// if the color DNE, print white
 	if (TeamColor != nullptr)
@@ -90,7 +91,8 @@ void ADMGameState::GetColorForPlayer(APlayerState* PlayerState, FColor& Output)
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("ERROR: Player %s attempted to find its team color. but no color exists for team %d"), *DMPlayerState->GetName(), DMPlayerState->CurrTeam)
+		FString EnumName = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)DMPlayerState->TeamComponent->GetTeam());
+		UE_LOG(LogTemp, Error, TEXT("ERROR: Player %s attempted to find its team color. but no color exists for team %s"), *DMPlayerState->GetName(), *EnumName)
 		Output = FColor::White;
 	}
 }
@@ -104,7 +106,7 @@ ADMPlayerState* ADMGameState::GetPlayerForTeam(EDMPlayerTeam Team)
 	for (int i = 0; i < PlayerArray.Num(); ++i)
 	{
 		ADMPlayerState* pPlayer = Cast<ADMPlayerState>(PlayerArray[i]);
-		if (pPlayer->CurrTeam == Team)
+		if (pPlayer->TeamComponent->GetTeam() == Team)
 		{
 			return pPlayer;
 		}

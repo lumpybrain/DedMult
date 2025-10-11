@@ -4,7 +4,8 @@
 #include "Commands/DMCommandQueueSubsystem.h"
 
 #include "Commands/DMCommand.h"			// UDMCommand
-#include "GameSettings/DMGameMode.h"	// ADMGameMode, EDMPlayerTeam
+#include "GameSettings/DMGameMode.h"	// ADMGameMode
+#include "Components/DMTeamComponent.h"	// EDMPlayerTeam
 #include "Player/DMPlayerState.h"		// ADMPlayerState
 
 DEFINE_LOG_CATEGORY(LogCommands);
@@ -46,11 +47,19 @@ void UDMCommandQueueSubsystem::ExecuteCommandsForTurn()
 	{
 		if (!IsValid(Command) || !Command->Validate())
 		{
-			UE_LOG(LogCommands, Warning, TEXT("Command %s tried to run but has been invalidated since its registration"), IsValid(Command) ? *Command->GetName() : *FString("NULLCLASS"))
+			UE_LOG(LogCommands, Warning, TEXT("Command %s tried to run but has been invalidated since its registration (%s)"), 
+				IsValid(Command) ? *Command->GetName() : *FString("NULLCLASS"),
+				IsValid(Command) ? *Command->CommandDebug() : *FString("NULLCLASS"))
 			continue;
 		}
-		FString EnumName = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)Command->GetOwningPlayer()->CurrTeam);
-		UE_LOG(LogCommands, Display, TEXT("Executing Command from player %s on team %s: %s"), *Command->GetOwningPlayer()->GetName(), *EnumName, *Command->CommandDebug())
+
+		EDMPlayerTeam PlayerTeam = UDMTeamComponent::GetActorsTeam(Command->GetOwningPlayer());
+		FString EnumName = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)PlayerTeam);
+		UE_LOG(LogCommands, Display, TEXT("Executing Command from player %s on team %s: %s"), 
+			*Command->GetOwningPlayer()->GetName(), 
+			*EnumName, 
+			*Command->CommandDebug())
+
 		Command->RunCommand();
 		Command->CommandUnregistered();
 	}

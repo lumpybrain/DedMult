@@ -6,7 +6,6 @@
 #include "Engine/StaticMeshActor.h"
 #include "DMShip.generated.h"
 
-enum class EDMPlayerTeam : uint8;
 class ADMPlayerState;
 
 /**
@@ -19,14 +18,20 @@ class MULTSTRAT_API ADMShip : public AStaticMeshActor
 	
 public:
 	/** Constructor: enable replication */
-	ADMShip(const FObjectInitializer& ObjectInitializer);
+	ADMShip(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	/** Replication */
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	UFUNCTION(BlueprintCallable)
+	ADMPlayerState* K2_GetOwningPlayer()			{ return OwningPlayer; }
+	TObjectPtr<ADMPlayerState> GetOwningPlayer()	{ return OwningPlayer; }
+
 	/** Team that owns the ship and can issue it commands */
-	UPROPERTY(BlueprintReadOnly, Replicated)
-	EDMPlayerTeam Team;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<class UDMTeamComponent> TeamComponent;
+
+protected:
 
 	/** Player that owns the ship for debug/possibility of alliances in the future */
 	UPROPERTY(BlueprintReadWrite, Replicated)

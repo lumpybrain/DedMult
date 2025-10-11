@@ -4,11 +4,30 @@
 #include "GalaxyObjects/DMGalaxyNode.h"
 
 #include "Commands/DMCommand.h"			// UDMCommand
-#include "GameSettings/DMGameMode.h"	// EDMPlayerTeam
+#include "Components/DMTeamComponent.h"	// EDMPlayerTeam
+#include "GameSettings/DMGameMode.h"	// ADMGameMode
 #include "Net/UnrealNetwork.h"			// DOREPLIFETIME
 #include "Player/DMShip.h"				// ADMShip
 
 DEFINE_LOG_CATEGORY(LogGalaxy);
+
+/******************************************************************************
+ * UDMNodeConnectionManager Constructor: Don't Tick!
+******************************************************************************/
+UDMNodeConnectionManager::UDMNodeConnectionManager()
+{
+	PrimaryComponentTick.bCanEverTick = false;
+	SetIsReplicatedByDefault(true);
+}
+/******************************************************************************
+ * UDMNodeConnectionManager Replication
+******************************************************************************/
+void UDMNodeConnectionManager::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const /* override */
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(UDMNodeConnectionManager, ConnectedNodes);
+}
 
 /******************************************************************************
  * Constructor: Enable Replication
@@ -44,7 +63,7 @@ void ADMGalaxyNode::ResolveTurn()
 	// Account for the current ship on the planet (if there is one)
 	if (IsValid(CurrentShip))
 	{
-		Powers.Add(CurrentShip->Team, TPair<ADMShip*, size_t>(CurrentShip, 1));
+		Powers.Add(CurrentShip->TeamComponent->GetTeam(), TPair<ADMShip*, size_t>(CurrentShip, 1));
 	}
 
 	// Process all pending ships
@@ -53,7 +72,7 @@ void ADMGalaxyNode::ResolveTurn()
 		ADMShip* pShipPtr = AttemptedShip.Key;
 		bool Supporting = AttemptedShip.Value;
 
-		TPair<ADMShip*, size_t>* CurrentAttacking = Powers.Find(pShipPtr->Team);
+		TPair<ADMShip*, size_t>* CurrentAttacking = Powers.Find(pShipPtr->TeamComponent->GetTeam());
 
 		// Attacker: No previous attacker -> Add the team to the map
 		// Supporter: No previous attacker -> Add the team to the map
@@ -64,11 +83,11 @@ void ADMGalaxyNode::ResolveTurn()
 			// this could be one line but it would be really annoying to read
 			if (Supporting)
 			{
-				Powers.Add(pShipPtr->Team, TPair<ADMShip*, size_t>(nullptr, 1));
+				Powers.Add(pShipPtr->TeamComponent->GetTeam(), TPair<ADMShip*, size_t>(nullptr, 1));
 			}
 			else
 			{
-				Powers.Add(pShipPtr->Team, TPair<ADMShip*, size_t>(pShipPtr, 1));
+				Powers.Add(pShipPtr->TeamComponent->GetTeam(), TPair<ADMShip*, size_t>(pShipPtr, 1));
 			}
 		}
 		else
@@ -84,7 +103,7 @@ void ADMGalaxyNode::ResolveTurn()
 			}
 			else
 			{
-				FString EnumName = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)pShipPtr->Team);
+				FString EnumName = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)pShipPtr->TeamComponent->GetTeam());
 				UE_LOG(LogGalaxy, Warning, TEXT("%s: Multiple attacking ships from team %s."),
 					*GetName(),
 					*EnumName)
@@ -133,7 +152,7 @@ void ADMGalaxyNode::ResolveTurn()
 	if (WinningShip != nullptr)
 	{
 		// debug
-		FString WinnerEnumName = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)WinningShip->Team);
+		FString WinnerEnumName = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)WinningShip->TeamComponent->GetTeam());
 		UE_LOG(LogGalaxy, Display, TEXT("%s: Captured by team %s with power %d"),
 			*GetName(),
 			*WinnerEnumName,

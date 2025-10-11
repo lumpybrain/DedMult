@@ -20,7 +20,13 @@ class MULTSTRAT_API UDMNodeConnectionManager : public UActorComponent
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	/** This doesn't need to tick, turn it off in constructor*/
+	UDMNodeConnectionManager();
+
+	/** Replication */
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated)
 	TArray<ADMGalaxyNode*>	ConnectedNodes;
 
 	// DMTODO: draw connections on begin play
@@ -36,7 +42,7 @@ class MULTSTRAT_API ADMGalaxyNode : public AStaticMeshActor
 	
 public:
 	/** Constructor: Enable Replication */
-	ADMGalaxyNode(const FObjectInitializer& ObjectInitializer);
+	ADMGalaxyNode(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 	/** Replication */
 	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -68,6 +74,7 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	bool K2_HasShip() const				{ return CurrentShip != nullptr; }
+	bool HasShip() const				{ return CurrentShip != nullptr; }
 
 	/**
 	 * Seperate out blueprint and C++ versions just because blueprints dont let us do pointers,

@@ -18,8 +18,8 @@ class MULTSTRAT_API ADMPlayerState : public APlayerState
 	GENERATED_BODY()
 	
 public:
-	/** Replication */
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	/** Constructor */
+	ADMPlayerState(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	/** 
 	 * Queue a Command in the Command Queue Subsystem
@@ -32,6 +32,6 @@ public:
 	void QueueCommand(UDMCommand* Command);
 	void QueueCommand_Implementation(UDMCommand* Command);
 
-	UPROPERTY(Replicated)
-	EDMPlayerTeam CurrTeam;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<class UDMTeamComponent> TeamComponent;
 };

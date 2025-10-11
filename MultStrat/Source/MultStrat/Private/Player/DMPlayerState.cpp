@@ -2,20 +2,20 @@
 
 
 #include "Player/DMPlayerState.h"
-#include "Commands\DMCommand.h"					// UDMCommand
-#include "Commands\DMCommandQueueSubsystem.h"	// UDMCommandQueueSubsystem
+
+#include "Commands/DMCommand.h"					// UDMCommand
+#include "Commands/DMCommandQueueSubsystem.h"	// UDMCommandQueueSubsystem
+#include "Components/DMTeamComponent.h"			// UDMTeamComponent
 #include "Net/UnrealNetwork.h"					// DOREPLIFETIME
 
 /******************************************************************************
- * Replication
+ * Constructor
 ******************************************************************************/
-void ADMPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const /*override*/
+ADMPlayerState::ADMPlayerState(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
 {
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-
-	DOREPLIFETIME(ADMPlayerState, CurrTeam);
+	TeamComponent = CreateDefaultSubobject<UDMTeamComponent>(TEXT("Team Component"));
 }
-
 
 /******************************************************************************
  * Queue a Command in the Command Queue Subsystem

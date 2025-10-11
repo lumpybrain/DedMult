@@ -3,6 +3,7 @@
 #include "GameSettings/DMGameMode.h"
 
 #include "GameSettings/DMGameState.h"	// ADMGameState
+#include "Components/DMTeamComponent.h"	// EDMPlayerTeam
 #include "Commands\DMCommand.h"			// UDMCommand
 
 

@@ -52,15 +52,16 @@ void UDMCommand::SetID(uint16 NewID)
  *		may have flags modified by the command.
  * returns true if the input is valid
 ******************************************************************************/
-bool UDMCommand::InitializeCommand_Implementation(ADMPlayerState* pRequestingPlayer, ADMGalaxyNode* pTarget)
+bool UDMCommand::InitializeCommand_Implementation(UDMCommandInit* InitVariables)
 {
-	if (!IsValid(pRequestingPlayer) || !IsValid(pTarget))
+	if (!IsValid(InitVariables) || !IsValid(InitVariables->pRequestingPlayer) 
+								|| !IsValid(InitVariables->pTarget))
 	{
 		return false;
 	}
 
-	pOwningPlayer = pRequestingPlayer;
-	pTargetNode = pTarget;
+	pOwningPlayer = InitVariables->pRequestingPlayer;
+	pTargetNode = InitVariables->pTarget;
 
 	return true;
 }

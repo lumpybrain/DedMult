@@ -6,8 +6,6 @@
 #include "GalaxyObjects/DMGalaxyNode.h"
 #include "DMPlanet.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FPlanetCaptured, ADMPlanet*, CapturedPlanet, EDMPlayerTeam, NewTeam);
-
 enum class EDMPlayerTeam : uint8;
 class ADMPlayerState;
 class ADMShip;
@@ -21,6 +19,9 @@ class MULTSTRAT_API ADMPlanet : public ADMGalaxyNode
 	GENERATED_BODY()
 	
 public:
+	
+	// Constructor
+	ADMPlanet(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 	// Replication
 	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -34,24 +35,12 @@ public:
 	//~=============================================================================
 	// Properties and Accessors
 
-	/*
-	 * Team that owns the planet
-	 * Sticky; should not change until the planet is interacted with by a command
-	 * or conquered by an opposing player
-	 * 
-	 * When OwningTeam changes, fire an event for everyone so that clients can
-	 * handle things like color changes!
-	 */
-	UFUNCTION()
-	void OnRep_OwningTeam();
-	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, ReplicatedUsing = OnRep_OwningTeam)
-	EDMPlayerTeam OwningTeam;
-
-	/** Event for when Owning Team has changed. */
-	UPROPERTY(BlueprintAssignable)
-	FPlanetCaptured OnOwningTeamChanged;
+	/** Team that owns the ship and can issue it commands */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<class UDMTeamComponent> TeamComponent;
 
 protected:
+
 	/** ADMGalaxyMode override; account for player ownership */
 	virtual void SetCurrentShip(ADMShip* NewShip) override;
 

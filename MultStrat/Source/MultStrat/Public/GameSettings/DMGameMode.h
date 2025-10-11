@@ -6,26 +6,9 @@
 #include "GameFramework/GameMode.h"
 #include "DMGameMode.generated.h"
 
+enum class EDMPlayerTeam : uint8;
 class UDMCommand;
 class ADMShip;
-
-/**
- * Bruh
- */
-UENUM()
-enum class EDMPlayerTeam : uint8
-{
-	Unowned = 0,
-	TeamOne,
-	TeamTwo,
-	TeamThree,
-	TeamFour,
-	TeamFive,
-	TeamSix,
-	TeamSeven,
-	TeamEight,
-	Count
-};
 
 /**
  * Easy modifiable data asset for use for any data related to teams

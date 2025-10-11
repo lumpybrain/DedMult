@@ -4,9 +4,38 @@
 #include "Commands/DMCommand_BlueprintLibrary.h"
 
 #include "GalaxyObjects/DMPlanet.h"				// ADMPlanet
+#include "Commands/DMCommand.h"					// UDMCommandInit
+#include "Commands/DMCommand_MoveShip.h"		// UDMCommandInitMoveShip
 #include "Commands/DMCommand_BuildShip.h"		// UDMCommand_BuildShip
 #include "Commands/DMCommandQueueSubsystem.h"	// LogCommands
+#include "Components/DMTeamComponent.h"			// UDMTeamComponent
 #include "Player/DMPlayerState.h"				// ADMPlayerState
+
+
+/*/////////////////////////////////////////////////////////////////////////////
+*	Building Command Initializers /////////////////////////////////////////////
+*//////////////////////////////////////////////////////////////////////////////
+
+
+UDMCommandInit* UDMCommand_BlueprintLibrary::MakeCommandInit(ADMPlayerState* pRequestingPlayer, ADMGalaxyNode* pTarget)
+{
+	UDMCommandInit* NewInit = NewObject<UDMCommandInit>();
+	NewInit->pRequestingPlayer = pRequestingPlayer;
+	NewInit->pTarget = pTarget;
+
+	return NewInit;
+}
+
+UDMCommandInitMoveShip* UDMCommand_BlueprintLibrary::MakeCommandInitMoveShip(ADMPlayerState* pRequestingPlayer, ADMGalaxyNode* pTarget, ADMShip* pShip)
+{
+	UDMCommandInitMoveShip* NewInit = NewObject<UDMCommandInitMoveShip>();
+	NewInit->pRequestingPlayer = pRequestingPlayer;
+	NewInit->pTarget = pTarget;
+	NewInit->pShip = pShip;
+
+	return NewInit;
+}
+
 
 /*/////////////////////////////////////////////////////////////////////////////
 *	Build Ship Command ////////////////////////////////////////////////////////
@@ -32,7 +61,7 @@ bool UDMCommand_BlueprintLibrary::TrialCommand_BuildShip(const ADMPlayerState* p
 		return false;
 	}
 	// Player and Planet must be the same team
-	if (pPlanetToBuildOn->OwningTeam != pRequestingPlayer->CurrTeam)
+	if (!UDMTeamComponent::ActorsAreSameTeam(pPlanetToBuildOn, pRequestingPlayer))
 	{
 		OutFailString = FString::Printf(TEXT("Player %s wants to build on planet %s, but they are on seperate teams!"), 
 				*pRequestingPlayer->GetName(), 
@@ -40,7 +69,7 @@ bool UDMCommand_BlueprintLibrary::TrialCommand_BuildShip(const ADMPlayerState* p
 		return false;
 	}
 	// No doubling on ships!
-	if (pPlanetToBuildOn->K2_HasShip())
+	if (pPlanetToBuildOn->HasShip())
 	{
 		OutFailString = FString::Printf(TEXT("Player %s wants to build on planet %s, but that planet already has a ship!"),
 				*pRequestingPlayer->GetName(),
@@ -67,7 +96,7 @@ UDMCommand_BuildShip* UDMCommand_BlueprintLibrary::MakeCommand_BuildShip(ADMPlay
 
 	// Build it
 	UDMCommand_BuildShip* NewBuildCommand = NewObject<UDMCommand_BuildShip>();
-	NewBuildCommand->InitializeCommand(pRequestingPlayer, pPlanetToBuildOn);
+	NewBuildCommand->InitializeCommand(MakeCommandInit(pRequestingPlayer, pPlanetToBuildOn));
 	return NewBuildCommand;
 }
 

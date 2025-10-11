@@ -10,6 +10,35 @@ class ADMGalaxyNode;
 class ADMPlayerState;
 
 /**
+ * Struct to be filled for command initialization
+ * Child commands with unique inputs can inherit from this to init with
+ *		unique variables in InitializeCommand_Implementation
+ * 
+ * Not exposed as a blueprint types; blueprints should use the DMCommand Blueprint Library
+ *		to build this class
+ * 
+ * Note: I wish this could be a struct, but we need to pass this by pointer
+ *		for casting to work, and you can't pass structs by pointers through
+ *		blueprint functions because blueprints rely on it being a UObject.
+ *		Unreal's data assets inherit from UObject, so i'm assuming the "extra"
+ *		cost of making it a UObject will be negligible
+ */
+UCLASS()
+class MULTSTRAT_API UDMCommandInit : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	/** Player requesting the command */
+	UPROPERTY(BlueprintReadWrite, meta = (DisplayName = "Requesting Player"))
+	ADMPlayerState* pRequestingPlayer = nullptr;
+	
+	/** Target node of the command */
+	UPROPERTY(BlueprintReadWrite, meta = (DisplayName = "Target"))
+	ADMGalaxyNode* pTarget = nullptr;
+};
+
+/**
  * Parent Class of all commands players used to change the current gamestate
  * Run only by Command Queue Subsystem.
  * 
@@ -58,9 +87,9 @@ public:
 	 * Command Initializes the command's target and owning player; those targets may have flags modified by the command.
 	 * returns true if the input is valid
 	 */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-	bool InitializeCommand(ADMPlayerState* RequestingPlayer, ADMGalaxyNode* Target);
-	virtual bool InitializeCommand_Implementation(ADMPlayerState* RequestingPlayer, ADMGalaxyNode* Target);
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, meta = (ToolTip = "Note; manual initialization is considered development only,\n Should you be making this through the blueprint library?"))
+	bool InitializeCommand(UDMCommandInit* InitVariables);
+	virtual bool InitializeCommand_Implementation(UDMCommandInit* InitVariables);
 
 	/**
 	 * Overrideable IsValid method; makes sure the command can still execute in the current gamestate

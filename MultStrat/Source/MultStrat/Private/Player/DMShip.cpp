@@ -3,7 +3,8 @@
 
 #include "Player/DMShip.h"
 
-#include "Net/UnrealNetwork.h"	// DOREPLIFETIME
+#include "Net/UnrealNetwork.h"				// DOREPLIFETIME
+#include "Components/DMTeamComponent.h"		// UDMTeamComponent
 
 
 /******************************************************************************
@@ -12,6 +13,8 @@
 ADMShip::ADMShip(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	bReplicates = true;
+
+	TeamComponent = CreateDefaultSubobject<UDMTeamComponent>(TEXT("Team Component"));
 }
 
 /******************************************************************************
@@ -21,7 +24,6 @@ void ADMShip::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeP
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME(ADMShip, Team);
 	DOREPLIFETIME(ADMShip, OwningPlayer);
 
 }

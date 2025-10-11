@@ -3,10 +3,18 @@
 
 #include "GalaxyObjects/DMPlanet.h"		// Base Class Definition
 #include "GameSettings/DMGameState.h"	// ADMGameState
-#include "GameSettings/DMGameMode.h"	// EDMPlayerTeam
+#include "Components/DMTeamComponent.h"	// EDMPlayerTeam
 #include "Net/UnrealNetwork.h"			// DOREPLIFETIME
 #include "Player/DMShip.h"				// ADMShip
 
+/******************************************************************************
+ * Replication
+******************************************************************************/
+ADMPlanet::ADMPlanet(const FObjectInitializer& ObjectInitializer)
+	: Super (ObjectInitializer)
+{
+	TeamComponent = CreateDefaultSubobject<UDMTeamComponent>(TEXT("Team Component"));
+}
 /******************************************************************************
  * Replication
 ******************************************************************************/
@@ -14,7 +22,6 @@ void ADMPlanet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME(ADMPlanet, OwningTeam);
 	DOREPLIFETIME(ADMPlanet, OwningPlayer);
 }
 
@@ -28,29 +35,20 @@ void ADMPlanet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 void ADMPlanet::K2_SpawnShip_Implementation(TSubclassOf<ADMShip> Ship, EDMPlayerTeam Team)
 {
 	// Can we?
-	if (K2_HasShip() || Ship == nullptr)
+	if (HasShip() || Ship == nullptr)
 	{
 		return;
 	}
 
 	// Do it
 	ADMShip* NewShip = GetWorld()->SpawnActor<ADMShip>(Ship);
-	NewShip->Team = Team;
+	NewShip->TeamComponent->SetTeam(Team);
 	SetCurrentShip(NewShip);
 }
 
 /*/////////////////////////////////////////////////////////////////////////////
 *	Properties and Accessors //////////////////////////////////////////////////
 *//////////////////////////////////////////////////////////////////////////////
-
-/******************************************************************************
- * When OwningTeam changes, fire an event for everyone so that clients can
- * handle things like color changes!
-******************************************************************************/
-void ADMPlanet::OnRep_OwningTeam()
-{
-	OnOwningTeamChanged.Broadcast(this, OwningTeam);
-}
 
 /******************************************************************************
  * ADMGalaxyMode override; account for player ownership
@@ -70,15 +68,9 @@ void ADMPlanet::SetCurrentShip(ADMShip* NewShip) /* override */
 	AGameStateBase* pGameStateBase = IsValid(pWorld) ? pWorld->GetGameState() : nullptr;
 	ADMGameState* pGameState = Cast<ADMGameState>(pGameStateBase);
 	check(pGameState)
-	if (IsValid(NewShip))
+	if (IsValid(NewShip) && !TeamComponent->IsSameTeam(NewShip->TeamComponent))
 	{
-		OwningTeam = NewShip->Team;
+		EDMPlayerTeam NewTeam = TeamComponent->SetTeam(NewShip->TeamComponent->GetTeam());
+		OwningPlayer = NewShip->GetOwningPlayer();
 	}
-	else
-	{
-		OwningTeam = EDMPlayerTeam::Unowned;
-	}
-
-	OwningPlayer = pGameState->GetPlayerForTeam(OwningTeam);
-
 }

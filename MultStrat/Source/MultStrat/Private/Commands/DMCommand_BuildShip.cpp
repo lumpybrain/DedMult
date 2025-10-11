@@ -4,6 +4,7 @@
 #include "Commands/DMCommand_BuildShip.h"
 
 #include "Commands/DMCommandQueueSubsystem.h"	// LogCommands
+#include "Components/DMTeamComponent.h"			// UDMTeamComponent
 #include "GalaxyObjects/DMGalaxyNode.h"			// ADMGalaxyNode
 #include "GalaxyObjects/DMPlanet.h"				// ADMPlanet
 #include "GameSettings/DMGameMode.h"			// ADMGameMode
@@ -41,7 +42,7 @@ bool UDMCommand_BuildShip::RunCommand_Implementation() const /* override */
 		
 		return false;
 	}
-	if (pTargetNode->K2_HasShip())
+	if (pTargetNode->HasShip())
 	{
 		UE_LOG(LogCommands, Error, TEXT("UDMCommand_BuildShip::RunCommand: Tried to build ship on invalid target %s"),
 			*pTargetNode->GetName())
@@ -50,7 +51,7 @@ bool UDMCommand_BuildShip::RunCommand_Implementation() const /* override */
 	}
 
 	// make the ship! note: pass in the owning players team instead of using the planet just in case we do some crazy abilities later
-	pTargetPlanet->K2_SpawnShip(DMGameMode->GetDefaultShip(), pOwningPlayer->CurrTeam);
+	pTargetPlanet->K2_SpawnShip(DMGameMode->GetDefaultShip(), pOwningPlayer->TeamComponent->GetTeam());
 	return true;
 }
 
@@ -76,12 +77,24 @@ void UDMCommand_BuildShip::CommandUnregistered_Implementation() /* override */
 ******************************************************************************/
 bool UDMCommand_BuildShip::Validate_Implementation() const /* override */
 {
-	if (Cast<ADMPlanet>(pTargetNode) == nullptr)
+	// our core variables better be valid
+	if (!Super::Validate_Implementation())
 	{
 		return false;
 	}
 
-	return Super::Validate_Implementation();
+	// we need to be targeting a planet and it needs to be on our team
+	ADMPlanet* TargetPlanet = Cast<ADMPlanet>(pTargetNode);
+	if (TargetPlanet == nullptr)
+	{
+		return false;
+	}
+	if (!TargetPlanet->TeamComponent->IsSameTeam(pOwningPlayer->TeamComponent))
+	{
+		return false;
+	}
+
+	return true;
 }
 
 /******************************************************************************

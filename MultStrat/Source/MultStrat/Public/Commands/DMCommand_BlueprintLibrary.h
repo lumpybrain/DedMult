@@ -6,6 +6,8 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "DMCommand_BlueprintLibrary.generated.h"
 
+class UDMCommandInit;
+class UDMCommandInitMoveShip;
 class ADMPlanet;
 class ADMPlayerState;
 class UDMCommand_BuildShip;
@@ -19,7 +21,17 @@ class MULTSTRAT_API UDMCommand_BlueprintLibrary : public UBlueprintFunctionLibra
 	GENERATED_BODY()
 	
 	//~=============================================================================
+	// Building Command Initializers
+
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	static UDMCommandInit* MakeCommandInit(ADMPlayerState* RequestingPlayer, ADMGalaxyNode* Target);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	static UDMCommandInitMoveShip* MakeCommandInitMoveShip(ADMPlayerState* RequestingPlayer, ADMGalaxyNode* Target, ADMShip* Ship);
+	
+	//~=============================================================================
 	// Build Ship Command
+
 	UFUNCTION(BlueprintCallable, meta = (ToolTip = "Checks if the BuildShip command is possible with the passed in objects."))
 	static bool TrialCommand_BuildShip(const ADMPlayerState* RequestingPlayer, const ADMPlanet* PlanetToBuildOn, FString& OutFailString);
 	UFUNCTION(BlueprintCallable)
