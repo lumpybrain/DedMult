@@ -173,7 +173,7 @@ void ADMGalaxyNode::ResolveTurn()
  * Only matters to the local player, so they can't do multiple commands to send
  *		a ship to one node
 ******************************************************************************/
-bool ADMGalaxyNode::SetIncomingShip(bool Incoming, UDMCommand* NewOwningCommand)
+bool ADMGalaxyNode::SetIncomingShip(bool Incoming, const UDMCommand* NewOwningCommand)
 {
 	if (!IsValid(NewOwningCommand))
 	{
@@ -235,15 +235,21 @@ bool ADMGalaxyNode::SetIncomingShip(bool Incoming, UDMCommand* NewOwningCommand)
 
 /******************************************************************************
  * Used by commands to remove the current ship
+ * Can also be called by planet code (i.e during collapse) to free the ship 
+ *		from its grip
 ******************************************************************************/
-void ADMGalaxyNode::RemoveShip(UDMCommand* OwningCommand)
+void ADMGalaxyNode::RemoveShip(const UDMCommand* OwningCommand)
 {
-	// A ship is being spawned here: moving ships 
+	// Remove the current ship, being mindful if its technically in the middle of destruction/garbage collection
 	if (!IsValid(CurrentShip))
 	{
-		UE_LOG(LogGalaxy, Warning, TEXT("%s: Command \"%s\" tried to remove the current ship, but there's no ship here."),
+		UE_LOG(LogGalaxy, Warning, TEXT("%s: \"%s\" tried to remove the current ship, Current Ship is invalid."),
 			*GetName(),
-			IsValid(OwningCommand) ? *OwningCommand->CommandDebug() : TEXT("INVALID COMMAND"))
+			IsValid(OwningCommand) ? *OwningCommand->CommandDebug() : TEXT("Manual Code Call"))
+	}
+	else
+	{
+		CurrentShip->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 	}
 
 	CurrentShip = nullptr;
@@ -252,7 +258,7 @@ void ADMGalaxyNode::RemoveShip(UDMCommand* OwningCommand)
 /******************************************************************************
  * Used by commands to register a ship trying to move to this planet for turn
 ******************************************************************************/
-bool ADMGalaxyNode::AddPendingShip(ADMShip* NewShip, bool Supporting, UDMCommand* OwningCommand)
+bool ADMGalaxyNode::AddPendingShip(ADMShip* NewShip, bool Supporting, const UDMCommand* OwningCommand)
 {
 	if (!IsValid(NewShip))
 	{
@@ -288,8 +294,18 @@ void ADMGalaxyNode::SetCurrentShip(ADMShip* NewShip)
 {
 	if (!HasAuthority())
 	{
-		UE_LOG(LogGalaxy, Error, TEXT("%s tried to set its current ship, but not on the main server?"),
-			*GetName())
+		UE_LOG(LogGalaxy, Error, TEXT("ADMGalaxyNode::SetCurrentShip: %s tried to set its current ship to %s, but not on the main server?"),
+			*GetName(),
+			IsValid(NewShip) ? *NewShip->GetName() : TEXT("INVALID SHIP"))
+		return;
+	}
+
+	if (!IsValid(NewShip))
+	{
+		UE_LOG(LogGalaxy, Warning, TEXT("ADMGalaxyNode::SetCurrentShip: %s tried to set its current ship to an invalid ship; Did you mean to use ADMGalaxyNode::RemoveShip?"),
+			*GetName());
+			
+		// In theory we could call RemoveShip here, but its better for designers to fix the error themselves rather then push bad "working" code
 		return;
 	}
 
@@ -302,7 +318,15 @@ void ADMGalaxyNode::SetCurrentShip(ADMShip* NewShip)
 	FVector ShipPosition = GetActorLocation();
 	ShipPosition.Z += pGameMode->GetShipSpawnZOffset();
 	NewShip->SetActorLocation(ShipPosition);
+	if (!NewShip->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform))
+	{
+		UE_LOG(LogGalaxy, Error, TEXT("ADMGalaxyNode::SetCurrentShip: %s tried to set its current ship to %s, but the attachment failed"),
+			*GetName(),
+			*NewShip->GetName())
+		return;
+	}
 
 	// (TF2 Heavy voice) OURS NOW
 	CurrentShip = NewShip;
+
 }

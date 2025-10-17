@@ -114,6 +114,8 @@ EDMPlayerTeam UDMTeamComponent::SetTeam(EDMPlayerTeam NewTeam)
 	PreviousTeam = ActiveTeam;
 	ActiveTeam = NewTeam;
 
+	OnActiveTeamChanged.Broadcast(GetOwner(), ActiveTeam);
+
 	return ActiveTeam;
 }
 

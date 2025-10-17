@@ -3,10 +3,8 @@
 
 #include "Player/DMPlayerState.h"
 
-#include "Commands/DMCommand.h"					// UDMCommand
-#include "Commands/DMCommandQueueSubsystem.h"	// UDMCommandQueueSubsystem
-#include "Components/DMTeamComponent.h"			// UDMTeamComponent
-#include "Net/UnrealNetwork.h"					// DOREPLIFETIME
+#include "Components/DMTeamComponent.h"		// UDMTeamComponent
+#include "Net/UnrealNetwork.h"				// DOREPLIFETIME
 
 /******************************************************************************
  * Constructor
@@ -18,18 +16,19 @@ ADMPlayerState::ADMPlayerState(const FObjectInitializer& ObjectInitializer)
 }
 
 /******************************************************************************
- * Queue a Command in the Command Queue Subsystem
- * Run on the server because thats where the subsystem is
+ * Replication
 ******************************************************************************/
-void ADMPlayerState::QueueCommand_Implementation(UDMCommand* Command)
+void ADMPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const /*override*/
 {
-	UWorld* World = GetWorld();
-	UDMCommandQueueSubsystem* CommandQueue = World != nullptr ? World->GetSubsystem<UDMCommandQueueSubsystem>() : nullptr;
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	if (!IsValid(CommandQueue))
-	{
-		return;
-	}
+	DOREPLIFETIME(ADMPlayerState, bTurnSubmitted)
+}
 
-	CommandQueue->RegisterCommand(Command);
+/******************************************************************************
+ * Trigger this boolean when we've submitted or cancelled our turn locally
+******************************************************************************/
+void ADMPlayerState::TurnProcessed_Implementation()
+{
+	OnTurnProcessed.Broadcast();
 }

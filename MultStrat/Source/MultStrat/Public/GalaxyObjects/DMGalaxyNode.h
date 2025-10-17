@@ -56,25 +56,28 @@ public:
 	 * Used by a team to register a ship is incoming
 	 * Only matters to the local player, so they can't do multiple commands to send a ship to one node
 	 */
-	bool SetIncomingShip(bool Incoming, UDMCommand* OwningCommand);
+	bool SetIncomingShip(bool Incoming, const UDMCommand* OwningCommand);
 
 	/** 
-	 * Used by commands to remove the current ship 
+	 * Used to remove the current ship
+	 * Can also be called by planet code (i.e during collapse) to free the ship from its grip
 	 * 
 	 * DMTODO: Ships should track if they're registered to a planet and 
 	 * call this or something similar if manually destroyed!
 	 */
-	virtual void RemoveShip(UDMCommand* OwningCommand);
+	virtual void RemoveShip(const UDMCommand* OwningCommand = nullptr);
 
 	/** Used by commands to register a ship trying to move to this planet for turn */
-	bool AddPendingShip(ADMShip* NewShip, bool IsSupportingTeam, UDMCommand* OwningCommand);
+	bool AddPendingShip(ADMShip* NewShip, bool IsSupportingTeam, const UDMCommand* OwningCommand);
 
 	//~=============================================================================
 	// Properties and Accessors
 
 	UFUNCTION(BlueprintCallable)
-	bool K2_HasShip() const				{ return CurrentShip != nullptr; }
-	bool HasShip() const				{ return CurrentShip != nullptr; }
+	bool HasShip() const											{ return CurrentShip != nullptr; }
+
+	UFUNCTION(BlueprintCallable)
+	ADMShip* GetShip() const										{ return CurrentShip; }
 
 	/**
 	 * Seperate out blueprint and C++ versions just because blueprints dont let us do pointers,
@@ -82,11 +85,10 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable)
 	bool K2_HasIncomingShip(FString& OutOwningCommandDebug) const;
-	bool HasIncomingShip() const		{ return IncomingShip; }
+	bool HasIncomingShip() const									{ return IncomingShip; }
 
-	/** Compartmentalized management of connected nodes */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<class UDMNodeConnectionManager> ConnectionManagerComponent;
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	const UDMNodeConnectionManager* GetConnectionManager() const	{ return ConnectionManagerComponent; }
 	
 protected:
 
@@ -106,6 +108,10 @@ protected:
 	UPROPERTY(Replicated)
 	TObjectPtr<ADMShip> CurrentShip = nullptr;
 
+	/** Compartmentalized management of connected nodes */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<class UDMNodeConnectionManager> ConnectionManagerComponent;
+
 	/** Ships trying to move to this node this turn */
 	TSet<TPair<TObjectPtr<ADMShip>, bool>> PendingShips;
 
@@ -119,5 +125,5 @@ protected:
 	 * i.e, right now this only relates to Build and Move commands
 	 */
 	bool IncomingShip = false;
-	TObjectPtr<UDMCommand> IncomingShipCommand = nullptr;
+	TObjectPtr<const UDMCommand> IncomingShipCommand = nullptr;
 };

@@ -31,6 +31,8 @@ void ADMPlanet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 
 /******************************************************************************
  * Spawn a ship on the planet!
+ * 
+ * Server Function
 ******************************************************************************/
 void ADMPlanet::K2_SpawnShip_Implementation(TSubclassOf<ADMShip> Ship, EDMPlayerTeam Team)
 {
@@ -43,6 +45,7 @@ void ADMPlanet::K2_SpawnShip_Implementation(TSubclassOf<ADMShip> Ship, EDMPlayer
 	// Do it
 	ADMShip* NewShip = GetWorld()->SpawnActor<ADMShip>(Ship);
 	NewShip->TeamComponent->SetTeam(Team);
+	NewShip->SetOwningPlayer(OwningPlayer);
 	SetCurrentShip(NewShip);
 }
 

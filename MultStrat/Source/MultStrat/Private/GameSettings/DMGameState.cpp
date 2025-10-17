@@ -3,11 +3,14 @@
 
 #include "GameSettings/DMGameState.h"
 
-#include "Components/DMTeamComponent.h"	// UDMTeamComponent, EDMPlayerTeam
-#include "GameFramework/PlayerState.h"	// APlayerState
-#include "GameSettings/DMGameMode.h"	// UTeamDataAsset
-#include "Net/UnrealNetwork.h"			// DOREPLIFETIME
-#include "Player/DMPlayerState.h"		// ADMPlayerState
+#include "Commands/DMCommandQueueSubsystem.h"			// UDMCommandQueueSubsystem
+#include "Components/DMTeamComponent.h"					// UDMTeamComponent, EDMPlayerTeam
+#include "GalaxyObjects/DMPlanetProcessingSubsystem.h"	// UDMPlanetProcessingSubsystem
+#include "GameFramework/PlayerState.h"					// APlayerState
+#include "GameSettings/DMGameMode.h"					// UTeamDataAsset
+#include "Net/UnrealNetwork.h"							// DOREPLIFETIME
+#include "Player/DMBaseController.h"					// ADMPlayerState
+#include "Player/DMPlayerState.h"						// ADMPlayerState
 
 /******************************************************************************
  * Replication
@@ -18,11 +21,24 @@ void ADMGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 
 	DOREPLIFETIME(ADMGameState, CurrentTeamData);
 	DOREPLIFETIME(ADMGameState, NextNewTeam);
+	DOREPLIFETIME(ADMGameState, bTurnProcessing);
 
 }
 
+/******************************************************************************
+ * Static Gettor
+******************************************************************************/
+ADMGameState* ADMGameState::Get(UObject* WorldContextObject)
+{
+	UWorld* pWorld = WorldContextObject != nullptr ? WorldContextObject->GetWorld() : nullptr;
+	AGameStateBase* pState = pWorld != nullptr ? pWorld->GetGameState() : nullptr;
+	ADMGameState* pDMState = Cast<ADMGameState>(pState);
+
+	return pDMState;
+}
+
 /*/////////////////////////////////////////////////////////////////////////////
-*	Player Management /////////////////////////////////////////////////////////
+*	Active Player Management //////////////////////////////////////////////////
 *//////////////////////////////////////////////////////////////////////////////
 
 /******************************************************************************
@@ -50,7 +66,7 @@ void ADMGameState::UnregisterPlayerState(APlayerState* PlayerState) /* override 
 {
 	// DMTODO: Should all owned objects by a player go to unowned?
 
-	ADMPlayerState* DMPlayerState = Cast< ADMPlayerState>(PlayerState);
+	ADMPlayerState* DMPlayerState = Cast<ADMPlayerState>(PlayerState);
 	if (PlayerState == nullptr)
 	{
 		return;
@@ -59,8 +75,60 @@ void ADMGameState::UnregisterPlayerState(APlayerState* PlayerState) /* override 
 	DMPlayerState->TeamComponent->SetTeam(EDMPlayerTeam::Unowned);
 }
 
+/******************************************************************************
+ * Check for all player states to see if they've submitted their turns
+ * If they have, execute the turn
+ * 
+ * Server Function
+******************************************************************************/
+void ADMGameState::CheckAllPlayersTurnsSubmitted_Implementation()
+{
+	// mark turn is processing
+	bTurnProcessing = true;
+
+	for (int i = 0; i < PlayerArray.Num(); ++i)
+	{
+
+		// if we find an active commander who doesn't have a turn submitted,
+		// don't try to process the turn
+
+		// DMTODO: Ignore dead/out players
+		if (ADMPlayerState* pPlayer = Cast<ADMPlayerState>(PlayerArray[i]))
+		{
+			if (!pPlayer->GetTurnSubmitted())
+			{
+
+				bTurnProcessing = false;
+				return;
+			}
+		}
+	}
+	
+	// Execute
+	UDMCommandQueueSubsystem* CommandQueue = UDMCommandQueueSubsystem::Get(this);
+	ensure(CommandQueue);
+	CommandQueue->ExecuteCommandsForTurn();
+
+	// DMTODO: This just doesn't work properly right now. Need to recheck my replication code
+	// and figure out why UI on clients aren't receiving the event they should when this function is called
+	for (int i = 0; i < PlayerArray.Num(); ++i)
+	{
+		if (ADMPlayerState* pPlayer = Cast<ADMPlayerState>(PlayerArray[i]))
+		{
+			pPlayer->SetTurnSubmitted(false);
+			if (ADMBaseController* pController = Cast<ADMBaseController>(pPlayer->GetPlayerController()))
+			{
+				pController->ServerFinishedProcessingTurn();
+			}
+		}
+	}
+
+
+	bTurnProcessing = false;
+}
+
 /*/////////////////////////////////////////////////////////////////////////////
-*	Properties and Accessors //////////////////////////////////////////////////
+*	Player Metadata Management ////////////////////////////////////////////////
 *//////////////////////////////////////////////////////////////////////////////
 
 /******************************************************************************
@@ -71,18 +139,27 @@ void ADMGameState::GetColorForPlayer(APlayerState* PlayerState, FColor& Output)
 	ADMPlayerState* DMPlayerState = Cast<ADMPlayerState>(PlayerState);
 	if (!IsValid(DMPlayerState))
 	{
-		UE_LOG(LogTemp, Error, TEXT("ERROR: GetColorForPlayer called on a non-deadmult player state!"))
-		Output = FColor::White;
-		return;
-	}
-	if (!IsValid(CurrentTeamData))
-	{
-		UE_LOG(LogTemp, Error, TEXT("ERROR: Gamestate does not have CurrentTeamData initialized properly!"))
+		UE_LOG(LogTemp, Error, TEXT("ADMGameState::GetColorForPlayer: called on a non-deadmult player state!"))
 		Output = FColor::White;
 		return;
 	}
 
-	FColor* TeamColor = CurrentTeamData->PlayerColors.Find(DMPlayerState->TeamComponent->GetTeam());
+	GetColorForTeam(DMPlayerState->TeamComponent->GetTeam(), Output);
+}
+
+/******************************************************************************
+ * Returns color for a given team
+******************************************************************************/
+void ADMGameState::GetColorForTeam(EDMPlayerTeam Team, FColor& Output)
+{
+	if (!IsValid(CurrentTeamData))
+	{
+		UE_LOG(LogTemp, Error, TEXT("ADMGameState::GetColorForTeam: Gamestate does not have CurrentTeamData initialized properly!"))
+			Output = FColor::White;
+		return;
+	}
+
+	FColor* TeamColor = CurrentTeamData->PlayerColors.Find(Team);
 
 	// if the color DNE, print white
 	if (TeamColor != nullptr)
@@ -91,8 +168,8 @@ void ADMGameState::GetColorForPlayer(APlayerState* PlayerState, FColor& Output)
 	}
 	else
 	{
-		FString EnumName = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)DMPlayerState->TeamComponent->GetTeam());
-		UE_LOG(LogTemp, Error, TEXT("ERROR: Player %s attempted to find its team color. but no color exists for team %s"), *DMPlayerState->GetName(), *EnumName)
+		FString EnumName = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)Team);
+		UE_LOG(LogTemp, Error, TEXT("ADMGameState::GetColorForTeam: No color exists for team %s"), *EnumName)
 		Output = FColor::White;
 	}
 }
@@ -113,4 +190,21 @@ ADMPlayerState* ADMGameState::GetPlayerForTeam(EDMPlayerTeam Team)
 	}
 
 	return nullptr;
+}
+
+/******************************************************************************
+ * When we're not longer processing a turn, tell the PlanetProcessingSubsystem
+ *		to get to work
+******************************************************************************/
+void ADMGameState::OnRep_TurnProcessing()
+{
+	if (bTurnProcessing)
+	{
+		return;
+	}
+
+	UDMPlanetProcessingSubsystem* pPlanetProcessing = UDMPlanetProcessingSubsystem::Get(this);
+	ensure(pPlanetProcessing);
+
+	pPlanetProcessing->StartProcessingPlanetResults();
 }

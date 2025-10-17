@@ -8,7 +8,7 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTeams, Log, All);
 
-UENUM()
+UENUM(BlueprintType)
 enum class EDMPlayerTeam : uint8
 {
 	Invalid = 0,
@@ -50,7 +50,6 @@ public:
 	 * if one of the actors does not have a Team component, this will always fail.
 	 */
 	UFUNCTION(BlueprintCallable)
-	static bool K2_ActorsAreSameTeam(const AActor* FirstActor, const AActor* SecondActor)	{ return ActorsAreSameTeam(FirstActor, SecondActor); }
 	static bool ActorsAreSameTeam(const AActor* FirstActor, const AActor* SecondActor);
 
 	/**
@@ -58,12 +57,10 @@ public:
 	 * If the actor does not have a Team component, this will always fail.
 	 */
 	UFUNCTION(BlueprintCallable)
-	bool K2_ActorIsSameTeam(const AActor* OtherActor) const									{ return ActorIsSameTeam(OtherActor); }
 	bool ActorIsSameTeam(const AActor* OtherActor) const;
 
 	/** Test if two team components are on the same team */
 	UFUNCTION(BlueprintCallable)
-	bool K2_IsSameTeam(const UDMTeamComponent* OtherComponent) const						{ return IsSameTeam(OtherComponent); }
 	bool IsSameTeam(const UDMTeamComponent* OtherComponent) const;
 
 	/**
@@ -71,12 +68,10 @@ public:
 	 * If the actor does not have a Team component, this will always fail.
 	 */
 	UFUNCTION(BlueprintCallable)
-	static EDMPlayerTeam K2_GetActorsTeam(const AActor* TargetActor)						{ return UDMTeamComponent::GetActorsTeam(TargetActor); }
 	static EDMPlayerTeam GetActorsTeam(const AActor* TargetActor);
 
 	/** Get the components active team*/
 	UFUNCTION(BlueprintCallable)
-	EDMPlayerTeam K2_GetTeam() const														{ return ActiveTeam; }
 	EDMPlayerTeam GetTeam() const															{ return ActiveTeam; }
 
 	/** 
@@ -84,12 +79,10 @@ public:
 	 * returns the new team for easy chaining
 	 */
 	UFUNCTION(BlueprintCallable)
-	EDMPlayerTeam K2_SetTeam(EDMPlayerTeam NewTeam)											{ return SetTeam(NewTeam); }
 	EDMPlayerTeam SetTeam(EDMPlayerTeam NewTeam);
 
 	/** Get the components previous team */
 	UFUNCTION(BlueprintCallable)
-	EDMPlayerTeam K2_GetPreviousTeam() const												{ return PreviousTeam; }
 	EDMPlayerTeam GetPreviousTeam() const													{ return PreviousTeam; }
 
 protected:

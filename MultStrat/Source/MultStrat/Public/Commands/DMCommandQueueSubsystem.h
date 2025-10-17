@@ -28,6 +28,8 @@ public:
 
 	//~ End UWorldSubsystem Interface
 
+	static UDMCommandQueueSubsystem* Get(UObject* WorldContextObject);
+
 	//~=============================================================================
 	// Command Processing Functions
 	

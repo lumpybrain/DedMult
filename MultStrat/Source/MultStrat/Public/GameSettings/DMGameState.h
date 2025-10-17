@@ -26,8 +26,11 @@ public:
 	/** Replication */
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	/** Static Gettor */
+	static ADMGameState* Get(UObject* WorldContextObject);
+
 	//~=============================================================================
-	// Player Management
+	// Active Player Management
 
 	/** Set the players new team */
 	virtual void RegisterPlayerState(APlayerState* PlayerState);
@@ -35,12 +38,28 @@ public:
 	/** Remove the players team */
 	virtual void UnregisterPlayerState(APlayerState* PlayerState);
 
+	/** 
+	 * Check for all player states to see if they've submitted their turns
+	 * If they have, execute the turn
+	 */
+	UFUNCTION(Reliable, Server)
+	void CheckAllPlayersTurnsSubmitted();
+	virtual void CheckAllPlayersTurnsSubmitted_Implementation();
+
+	/** Gettor to know if the system is actively processing a turn */
+	UFUNCTION(BlueprintCallable)
+	bool IsProcessingATurn()		{ return bTurnProcessing; }
+
 	//~=============================================================================
-	// Properties and Accessors
+	// Player Metadata Management
 
 	/** Determines color for a player based on their current team */
 	UFUNCTION(BlueprintCallable)
 	void GetColorForPlayer(APlayerState* PlayerState, FColor& Output);
+
+	/** returns color for a given team */
+	UFUNCTION(BlueprintCallable)
+	void GetColorForTeam(EDMPlayerTeam Team, FColor& Output);
 
 	/** 
 	 * Checks registered players for a one who is on the given team 
@@ -56,6 +75,15 @@ public:
 	/** When a player joins, they will be given this team */
 	UPROPERTY(Replicated)
 	EDMPlayerTeam NextNewTeam;
-	
+
+protected:
+
+	/** When we're not longer processing a turn, tell the PlanetProcessingSubsystem to get to work */
+	UFUNCTION()
+	void OnRep_TurnProcessing();
+	/** True when all the players have submitted their inputs; false after all the commands have processed */
+	UPROPERTY(Replicated, ReplicatedUsing = OnRep_TurnProcessing)
+	bool bTurnProcessing;
+
 private:
 };

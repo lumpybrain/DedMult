@@ -6,6 +6,7 @@
 #include "Engine/StaticMeshActor.h"
 #include "DMShip.generated.h"
 
+class ADMGalaxyNode;
 class ADMPlayerState;
 
 /**
@@ -23,9 +24,21 @@ public:
 	/** Replication */
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	/** 
+	 * Get the current galaxy node the ship is docked at. 
+	 * Note: May be nullptr if commands are currently executing. 
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	ADMGalaxyNode* GetCurrentNode() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, 
+		meta = (ToolTip = "Returns true if a target node is reachable in one movement command.\nNote: Returns false if the target node is the ships current node."))
+	bool IsNodeReachable(const ADMGalaxyNode* TargetNode) const;
+	virtual bool IsNodeReachable_Implementation(const ADMGalaxyNode* TargetNode) const;
+
 	UFUNCTION(BlueprintCallable)
-	ADMPlayerState* K2_GetOwningPlayer()			{ return OwningPlayer; }
-	TObjectPtr<ADMPlayerState> GetOwningPlayer()	{ return OwningPlayer; }
+	ADMPlayerState* GetOwningPlayer()				{ return OwningPlayer; }
+	void SetOwningPlayer(ADMPlayerState* NewOwner)	{ OwningPlayer = NewOwner; }
 
 	/** Team that owns the ship and can issue it commands */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)

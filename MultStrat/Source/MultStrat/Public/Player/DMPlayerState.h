@@ -6,11 +6,11 @@
 #include "GameFramework/PlayerState.h"
 #include "DMPlayerState.generated.h"
 
-class UDMCommand;
-enum class EDMPlayerTeam : uint8;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FPlayerTurnProcessed);
 
 /**
- * 
+ * Stores information on the current state of the player's turn submission and team
  */
 UCLASS()
 class MULTSTRAT_API ADMPlayerState : public APlayerState
@@ -21,17 +21,28 @@ public:
 	/** Constructor */
 	ADMPlayerState(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
-	/** 
-	 * Queue a Command in the Command Queue Subsystem
-	 * Run on the server because thats where the subsystem is
-	 *
-	 * DMTODO: Client simulation means we need this to not be a server command, but set up the game
-	 * to simulate in case we are not on the server!
-	 */
-	UFUNCTION(BlueprintCallable, Reliable, Server)
-	void QueueCommand(UDMCommand* Command);
-	void QueueCommand_Implementation(UDMCommand* Command);
+	/** Replication */
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	/** Get whether the controller submitted its turn */
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	bool GetTurnSubmitted() const				{ return bTurnSubmitted; }
+	void SetTurnSubmitted(bool IsSubmitted)		{ bTurnSubmitted = IsSubmitted; }
+
+	UFUNCTION(Client, Reliable)
+	void TurnProcessed();
+	void TurnProcessed_Implementation();
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated)
 	TObjectPtr<class UDMTeamComponent> TeamComponent;
+
+	/** Event for when Owning Team has changed. */
+	UPROPERTY(BlueprintAssignable)
+	FPlayerTurnProcessed OnTurnProcessed;
+
+
+protected:
+	/** Trigger this boolean when we've submitted or cancelled our turn locally */
+	UPROPERTY(BlueprintReadOnly, Replicated)
+	bool bTurnSubmitted;
 };

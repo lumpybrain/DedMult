@@ -3,10 +3,12 @@
 
 #include "Commands/DMCommandQueueSubsystem.h"
 
-#include "Commands/DMCommand.h"			// UDMCommand
-#include "GameSettings/DMGameMode.h"	// ADMGameMode
-#include "Components/DMTeamComponent.h"	// EDMPlayerTeam
-#include "Player/DMPlayerState.h"		// ADMPlayerState
+#include "Commands/DMCommand.h"							// UDMCommand
+#include "GalaxyObjects/DMPlanetProcessingSubsystem.h"	// UDMPlanetProcessingSubsystem
+#include "GameSettings/DMGameMode.h"					// ADMGameMode
+#include "GameSettings/DMGameState.h"					// ADMGameState
+#include "Components/DMTeamComponent.h"					// EDMPlayerTeam
+#include "Player/DMPlayerState.h"						// ADMPlayerState
 
 DEFINE_LOG_CATEGORY(LogCommands);
 
@@ -21,9 +23,20 @@ bool UDMCommandQueueSubsystem::ShouldCreateSubsystem(UObject* Outer) const /* ov
 		return false;
 	}
 
-	UWorld* World = Cast<UWorld>(Outer);
+	UWorld* pWorld = Cast<UWorld>(Outer);
 	// will be created in standalone, dedicated servers, and listen servers
-	return World->GetNetMode() < NM_Client; 
+	return pWorld->GetNetMode() < NM_Client; 
+}
+
+/******************************************************************************
+ * Static Gettor
+******************************************************************************/
+UDMCommandQueueSubsystem* UDMCommandQueueSubsystem::Get(UObject* WorldContextObject)
+{
+	UWorld* pWorld = WorldContextObject != nullptr ? WorldContextObject->GetWorld() : nullptr;
+	UDMCommandQueueSubsystem* pQueueSubsystem = pWorld != nullptr ? pWorld->GetSubsystem<UDMCommandQueueSubsystem>() : nullptr;
+
+	return pQueueSubsystem;
 }
 
 /*/////////////////////////////////////////////////////////////////////////////
@@ -67,6 +80,14 @@ void UDMCommandQueueSubsystem::ExecuteCommandsForTurn()
 	// prepare for next turn
 	CommandNumForTurn = 1;
 	ActiveCommands.Empty();
+
+	//ADMGameState* pDMState = ADMGameState::Get(this);
+	//ensure(pDMState);
+
+	// DMTODO: we should have this happen locally on every machine
+	UDMPlanetProcessingSubsystem* CommandQueue = UDMPlanetProcessingSubsystem::Get(this);
+	ensure(CommandQueue);
+	CommandQueue->StartProcessingPlanetResults();
 }
 
 /******************************************************************************

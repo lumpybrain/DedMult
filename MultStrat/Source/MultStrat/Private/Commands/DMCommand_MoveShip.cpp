@@ -13,12 +13,23 @@
 *//////////////////////////////////////////////////////////////////////////////
 
 /******************************************************************************
- * Build the ship on the planet!
+ * If the node is there, move to it
  * returns true if command executes successfully
 ******************************************************************************/
 bool UDMCommand_MoveShip::RunCommand_Implementation() const /* override */
 {
-	// DMTODO: alllllllllll
+	if (!IsValid(pTargetNode) || !IsValid(pShip))
+	{
+		return false;
+	}
+
+	// remove it from its current node
+	if (ADMGalaxyNode* pParent = Cast<ADMGalaxyNode>(pShip->GetCurrentNode()))
+	{
+		pParent->RemoveShip(this);
+	}
+
+	pTargetNode->AddPendingShip(pShip, false, this);
 
 	return true;
 }
