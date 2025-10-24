@@ -60,9 +60,20 @@ class MULTSTRAT_API UDMCommand_MoveShip : public UDMCommand
 	/** returns a string with the name of the command, what it does, and what it will operate on */
 	virtual FString CommandDebug_Implementation() const override;
 
-	//~ End UDMCommand Interface
+	/** create a new moveship command object based on input data */
+	virtual UDMCommand* CopyCommand(struct FCommandPacket& Packet) override;
+	
+	/** Fill data for future use of CopyCommand calls */
+	virtual void FillCopyCommandData(TArray<TObjectPtr<UObject>> &CommandData) override;
 
 protected:
+
+	/** Get data for CopyCommand calls */
+	virtual void GetCopyCommandData(TArray<TObjectPtr<UObject>>& CommandData) override;
+
+	//~ End UDMCommand Interface
+
+
 	/** Ship that this command wants to move. Should be owned by the command's owning player. */
 	UPROPERTY(BlueprintReadOnly, meta = (DisplayName = "Ship"))
 	TObjectPtr<ADMShip> pShip;

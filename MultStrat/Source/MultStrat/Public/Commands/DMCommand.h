@@ -10,7 +10,7 @@ class ADMGalaxyNode;
 class ADMPlayerState;
 
 /**
- * Struct to be filled for command initialization
+ * Class to be filled for command initialization
  * Child commands with unique inputs can inherit from this to init with
  *		unique variables in InitializeCommand_Implementation
  * 
@@ -103,6 +103,19 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
 	FString CommandDebug() const;
 	virtual FString CommandDebug_Implementation() const	{ return FString::Printf(TEXT("No Debug for class %s"), *GetClass()->GetFName().ToString()); }
+
+	/**
+	 * Create a new UObject of this command's class type and copy the data from command data into it
+	 * Used when sending commands from the client to the server instead of replication so that we
+	 *		don't have to wait for unreal's automatic replication to copy the data over for us;
+	 *		not all clients need a copy of the command, just the server.
+	 */
+	virtual UDMCommand* CopyCommand(struct FCommandPacket& Packet);
+
+	/**
+	 * Fill data for future use of CopyCommand calls
+	 */
+	virtual void FillCopyCommandData(TArray<TObjectPtr<UObject>> &CommandData);
 	
 	//~=============================================================================
 	// Properties and Accessors
@@ -111,13 +124,14 @@ public:
 	const ADMPlayerState* GetOwningPlayer() { return pOwningPlayer; }
 
 	/** higher priority commands run first.Set when registered to the command queue */
-	UPROPERTY()
 	uint8 Priority = 0;
 
 protected:
+	virtual void GetCopyCommandData(TArray<TObjectPtr<UObject>>& CommandData);
+
 	/** Player that owns the command; mostly used to determine team */
 	UPROPERTY(BlueprintReadOnly, meta = (DisplayName = "Owning Player"))
-	TObjectPtr<const ADMPlayerState> pOwningPlayer;
+	TObjectPtr<ADMPlayerState> pOwningPlayer;
 
 	/** Galaxy node the command wants to interact with(i.e, spawning on a node, moving to a node) */
 	UPROPERTY(BlueprintReadOnly, meta = (DisplayName = "Target Node"))
@@ -126,4 +140,21 @@ protected:
 private:
 	/** ID managed by command queue subsystem */
 	uint16 CommandID = 0;
+};
+
+USTRUCT()
+struct MULTSTRAT_API FCommandPacket
+{
+	GENERATED_USTRUCT_BODY()
+
+	FCommandPacket() {}
+	FCommandPacket(const FCommandPacket& other) : CommandClass(other.CommandClass), Data(other.Data) {}
+
+	void InitializePacket(UDMCommand* CommandForInfo);
+
+	UPROPERTY()
+	TSubclassOf<UDMCommand> CommandClass;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UObject>> Data;
 };

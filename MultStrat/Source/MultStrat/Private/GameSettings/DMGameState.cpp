@@ -109,8 +109,8 @@ void ADMGameState::CheckAllPlayersTurnsSubmitted_Implementation()
 	ensure(CommandQueue);
 	CommandQueue->ExecuteCommandsForTurn();
 
-	// DMTODO: This just doesn't work properly right now. Need to recheck my replication code
-	// and figure out why UI on clients aren't receiving the event they should when this function is called
+	// DMTODO: Maybe make Execute Commands a latent action and have this execute whenever it finishes?
+	// Not really necessary for the light weight, but would be good practice
 	for (int i = 0; i < PlayerArray.Num(); ++i)
 	{
 		if (ADMPlayerState* pPlayer = Cast<ADMPlayerState>(PlayerArray[i]))
@@ -122,7 +122,6 @@ void ADMGameState::CheckAllPlayersTurnsSubmitted_Implementation()
 			}
 		}
 	}
-
 
 	bTurnProcessing = false;
 }

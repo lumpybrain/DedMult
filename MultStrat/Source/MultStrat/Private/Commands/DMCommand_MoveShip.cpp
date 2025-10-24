@@ -3,10 +3,12 @@
 
 #include "Commands/DMCommand_MoveShip.h"
 
-#include "Components/DMTeamComponent.h"		// DMTeamComponent
-#include "GalaxyObjects/DMGalaxyNode.h"		// ADMGalaxyNode
-#include "Player/DMPlayerState.h"			// ADMPlayerState
-#include "Player/DMShip.h"					// ADMShip
+#include "Commands/DMCommand.h"					// FCommandPacket
+#include "Commands/DMCommandQueueSubsystem.h"	// LogCommands
+#include "Components/DMTeamComponent.h"			// DMTeamComponent
+#include "GalaxyObjects/DMGalaxyNode.h"			// ADMGalaxyNode
+#include "Player/DMPlayerState.h"				// ADMPlayerState
+#include "Player/DMShip.h"						// ADMShip
 
 /*/////////////////////////////////////////////////////////////////////////////
 *	UDMCommand Interface //////////////////////////////////////////////////////
@@ -100,5 +102,37 @@ FString UDMCommand_MoveShip::CommandDebug_Implementation() const /* override */
 		IsValid(pTargetNode) ? *pTargetNode->GetName() : *FString("INVALID TARGET"));
 }
 
+/******************************************************************************
+ * create a new moveship command object based on input data
+******************************************************************************/
+UDMCommand* UDMCommand_MoveShip::CopyCommand(FCommandPacket& Packet) /* override */
+{
+	UDMCommand_MoveShip* pNewCommand = NewObject<UDMCommand_MoveShip>();
+	pNewCommand->GetCopyCommandData(Packet.Data);
 
+	return pNewCommand;
+}
 
+/******************************************************************************
+ * These functions are used to fill and decode data during the CopyCommand function
+******************************************************************************/
+void UDMCommand_MoveShip::FillCopyCommandData(TArray<TObjectPtr<UObject>>& CommandData) /* override */
+{
+	Super::FillCopyCommandData(CommandData);
+
+	CommandData.Add(pShip);
+}
+
+void UDMCommand_MoveShip::GetCopyCommandData(TArray<TObjectPtr<UObject>>& CommandData) /* override */
+{
+	// Copy
+	if (CommandData.Num() < 3)
+	{
+		UE_LOG(LogCommands, Error, TEXT("UDMCommand_MoveShip::GetCopyCommandData: Data not properly instantiated, no data will be copied"))
+		return;
+	}
+	pShip = Cast<ADMShip>(CommandData[2]);
+
+	// Copy parent data + call validate
+	Super::GetCopyCommandData(CommandData);
+}

@@ -90,21 +90,27 @@ public:
 	/** Check the command data asset for the default ship class */
 	TSubclassOf<ADMShip> GetDefaultShip() const;
 
+	/** Get the class connectors will be using to draw splines between planets */
+	TSubclassOf<AActor> GetConnectorClass() const	{ return ConnectorSplineClass; }
+
 	/** Check the Command data asset for the default ship spawn Z offset */
 	float GetShipSpawnZOffset() const;
 
 private:
 
-	// Max # of players allowed in this game mode
-	UPROPERTY(EditDefaultsOnly)
+	/** Max # of players allowed in this game mode */
+	UPROPERTY(EditDefaultsOnly, Category="DedMult Defaults")
 	uint8 MaxNumPlayers = 8;
+	/** Default values for team-related data (i.e colors) */
+	UPROPERTY(EditDefaultsOnly, Category = "DedMult Defaults")
+	TSubclassOf<AActor> ConnectorSplineClass;
 
-	// Default values for team-related data (i.e colors)
-	UPROPERTY(EditDefaultsOnly)
+	/** Default values for team-related data (i.e colors) */
+	UPROPERTY(EditDefaultsOnly, Category = "DedMult Defaults")
 	TObjectPtr<UTeamDataAsset> TeamDataAsset;
 
-	// Default values for command-related data (i.e default ship to build)
-	UPROPERTY(EditDefaultsOnly)
+	/** Default values for command-related data (i.e default ship to build) */
+	UPROPERTY(EditDefaultsOnly, Category = "DedMult Defaults")
 	TObjectPtr<UCommandsDataAsset> CommandsDataAsset;
 	
 };

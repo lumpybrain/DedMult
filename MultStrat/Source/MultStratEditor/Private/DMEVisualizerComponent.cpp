@@ -1,11 +1,15 @@
-
+// Copyright (c) 2025 William Pritz under MIT License
 
 #include "DMEVisualizerComponent.h"
 
-#include "GalaxyObjects\DMGalaxyNode.h"
+#include "GalaxyObjects/DMGalaxyNode.h"				// ADMGalaxyNode
+#include "Components/DMNodeConnectionComponent.h"	// UDMNodeConnectionComponent
 
 
-// ----------------------------------------------------------------------------
+/******************************************************************************
+ * FComponentVisualizer Override: Draw connections in the scene for each
+ * Node connected to our node
+******************************************************************************/
 void FDMEVisualizerComponent::DrawVisualization(const UActorComponent* Component, const FSceneView* View,
 	FPrimitiveDrawInterface* PDI) /*override*/
 {
@@ -20,7 +24,7 @@ void FDMEVisualizerComponent::DrawVisualization(const UActorComponent* Component
 		return;
 	}
 
-	const UDMNodeConnectionManager* ManagerComponent = Cast<UDMNodeConnectionManager>(Component);
+	const UDMNodeConnectionComponent* ManagerComponent = Cast<UDMNodeConnectionComponent>(Component);
 	if (!IsValid(ManagerComponent))
 	{
 		return;

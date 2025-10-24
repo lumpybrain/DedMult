@@ -50,14 +50,14 @@ public:
 	 * Registers a command with the subsystem.
 	 * Returns the command ID to be stored if a command is requested to be cancelled
 	 */
-	UFUNCTION(BlueprintCallable, meta = (DevelopmentOnly, ToolTip = "Note: Requesting Commands only works on the server, because the CommmandQueueSubsystem only runs on the server!\nTry using your local playerstate to request/cancel commands!"))
+	UFUNCTION(BlueprintCallable, meta = (DevelopmentOnly, ToolTip = "Note: Requesting Commands only works on the server, because the CommmandQueueSubsystem only runs on the server!\nTry using your local player controller to request/cancel commands!"))
 	int RegisterCommand(UDMCommand* Command);
 
 	/**
 	 * Unregisters a command with the subsystem.
 	 * Returns if the command was succesfully cancelled (i.e, maybe the wrong player requesting cancellation)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (DevelopmentOnly, ToolTip = "Note: Cancelling Commands only works on the server, because the CommmandQueueSubsystem only runs on the server!\nTry using your local playerstate to request/cancel commands!"))
+	UFUNCTION(BlueprintCallable, meta = (DevelopmentOnly, ToolTip = "Note: Cancelling Commands only works on the server, because the CommmandQueueSubsystem only runs on the server!\nTry using your local player controller to request/cancel commands!"))
 	bool CancelCommand(const ADMPlayerState* Player, int CommandID);
 
 private:

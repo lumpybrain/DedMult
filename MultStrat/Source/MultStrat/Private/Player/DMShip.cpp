@@ -3,9 +3,10 @@
 
 #include "Player/DMShip.h"
 
-#include "Components/DMTeamComponent.h"		// UDMTeamComponent
-#include "GalaxyObjects/DMGalaxyNode.h"		// ADMGalaxyNode, UDMNodeConnectionManager
-#include "Net/UnrealNetwork.h"				// DOREPLIFETIME
+#include "Components/DMTeamComponent.h"				// UDMTeamComponent
+#include "Components/DMNodeConnectionComponent.h"	// UDMNodeConnectionComponent
+#include "GalaxyObjects/DMGalaxyNode.h"				// ADMGalaxyNode
+#include "Net/UnrealNetwork.h"						// DOREPLIFETIME
 
 
 /******************************************************************************
@@ -57,9 +58,9 @@ bool ADMShip::IsNodeReachable_Implementation(const ADMGalaxyNode* pTargetNode) c
 
 
 	// Check all connections to our current node for a match
-	const UDMNodeConnectionManager* pConnectManager = pCurrentNode->GetConnectionManager();
-	check(pConnectManager);
-	for (const ADMGalaxyNode* pCurrNode : pConnectManager->ConnectedNodes)
+	const UDMNodeConnectionComponent* pConnectComponent = pCurrentNode->GetConnectionManager();
+	check(pConnectComponent);
+	for (const ADMGalaxyNode* pCurrNode : pConnectComponent->ConnectedNodes)
 	{
 		if (pCurrNode == pTargetNode)
 		{

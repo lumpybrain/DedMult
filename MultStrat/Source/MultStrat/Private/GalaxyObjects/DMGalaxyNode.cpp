@@ -3,31 +3,14 @@
 
 #include "GalaxyObjects/DMGalaxyNode.h"
 
-#include "Commands/DMCommand.h"			// UDMCommand
-#include "Components/DMTeamComponent.h"	// EDMPlayerTeam
-#include "GameSettings/DMGameMode.h"	// ADMGameMode
-#include "Net/UnrealNetwork.h"			// DOREPLIFETIME
-#include "Player/DMShip.h"				// ADMShip
+#include "Commands/DMCommand.h"						// UDMCommand
+#include "Components/DMNodeConnectionComponent.h"	// UDMNodeConnectionComponent
+#include "Components/DMTeamComponent.h"				// EDMPlayerTeam
+#include "GameSettings/DMGameMode.h"				// ADMGameMode
+#include "Net/UnrealNetwork.h"						// DOREPLIFETIME
+#include "Player/DMShip.h"							// ADMShip
 
 DEFINE_LOG_CATEGORY(LogGalaxy);
-
-/******************************************************************************
- * UDMNodeConnectionManager Constructor: Don't Tick!
-******************************************************************************/
-UDMNodeConnectionManager::UDMNodeConnectionManager()
-{
-	PrimaryComponentTick.bCanEverTick = false;
-	SetIsReplicatedByDefault(true);
-}
-/******************************************************************************
- * UDMNodeConnectionManager Replication
-******************************************************************************/
-void UDMNodeConnectionManager::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const /* override */
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-
-	DOREPLIFETIME(UDMNodeConnectionManager, ConnectedNodes);
-}
 
 /******************************************************************************
  * Constructor: Enable Replication
@@ -35,7 +18,7 @@ void UDMNodeConnectionManager::GetLifetimeReplicatedProps(TArray<FLifetimeProper
 ADMGalaxyNode::ADMGalaxyNode(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	bReplicates = true;
-	ConnectionManagerComponent = CreateDefaultSubobject<UDMNodeConnectionManager>(TEXT("ConnectionManager"));
+	ConnectionManagerComponent = CreateDefaultSubobject<UDMNodeConnectionComponent>(TEXT("ConnectionManager"));
 }
 
 /******************************************************************************
@@ -284,6 +267,12 @@ bool ADMGalaxyNode::K2_HasIncomingShip(FString& OutOwningCommandDebug) const
 {
 	OutOwningCommandDebug = IsValid(IncomingShipCommand) ? IncomingShipCommand->CommandDebug() : TEXT("None");
 	return IncomingShip;
+}
+
+
+UDMNodeConnectionComponent* ADMGalaxyNode::GetConnectionManager() const
+{ 
+	return ConnectionManagerComponent; 
 }
 
 /******************************************************************************

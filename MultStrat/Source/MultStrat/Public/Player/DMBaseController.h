@@ -8,6 +8,7 @@
 
 
 class UDMCommand;
+struct FCommandPacket;
 
 /**
  * Base controller for all Commanders in the game
@@ -24,6 +25,10 @@ public:
 	//~=============================================================================
 	// Commands
 
+	/** Used by blueprints to send commands to the server */
+	UFUNCTION(BlueprintCallable)
+	void K2_QueueCommand(UDMCommand* Command);
+	
 	/**
 	 * Queue a Command in the Command Queue Subsystem
 	 * Run on the server because thats where the subsystem is
@@ -31,9 +36,9 @@ public:
 	 * DMTODO: Client simulation means we need this to not be a server command, but set up the game
 	 * to simulate in case we are not on the server!
 	 */
-	UFUNCTION(BlueprintCallable, Reliable, Server)
-	void QueueCommand(UDMCommand* Command);
-	void QueueCommand_Implementation(UDMCommand* Command);
+	UFUNCTION(Reliable, Server)
+	void QueueCommandOnServer(FCommandPacket CommandInfo);
+	void QueueCommandOnServer_Implementation(FCommandPacket CommandInfo);
 
 	//~=============================================================================
 	// Turn Management

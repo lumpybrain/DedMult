@@ -9,28 +9,9 @@
 class ADMGalaxyNode;
 class ADMShip;
 class UDMCommand;
+class UDMNodeConnectionComponent;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogGalaxy, Log, All);
-
-/**
- * Specific storage for a node's connections
- */
-UCLASS()
-class MULTSTRAT_API UDMNodeConnectionManager : public UActorComponent
-{
-	GENERATED_BODY()
-public:
-	/** This doesn't need to tick, turn it off in constructor*/
-	UDMNodeConnectionManager();
-
-	/** Replication */
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated)
-	TArray<ADMGalaxyNode*>	ConnectedNodes;
-
-	// DMTODO: draw connections on begin play
-};
 
 /**
  * Galaxy Nodes make up the map of all ndoes players can interact with
@@ -43,6 +24,7 @@ class MULTSTRAT_API ADMGalaxyNode : public AStaticMeshActor
 public:
 	/** Constructor: Enable Replication */
 	ADMGalaxyNode(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+
 	/** Replication */
 	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -88,7 +70,7 @@ public:
 	bool HasIncomingShip() const									{ return IncomingShip; }
 
 	UFUNCTION(BlueprintCallable, BlueprintPure)
-	const UDMNodeConnectionManager* GetConnectionManager() const	{ return ConnectionManagerComponent; }
+	UDMNodeConnectionComponent* GetConnectionManager() const;
 	
 protected:
 
@@ -109,8 +91,8 @@ protected:
 	TObjectPtr<ADMShip> CurrentShip = nullptr;
 
 	/** Compartmentalized management of connected nodes */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<class UDMNodeConnectionManager> ConnectionManagerComponent;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TObjectPtr<class UDMNodeConnectionComponent> ConnectionManagerComponent;
 
 	/** Ships trying to move to this node this turn */
 	TSet<TPair<TObjectPtr<ADMShip>, bool>> PendingShips;

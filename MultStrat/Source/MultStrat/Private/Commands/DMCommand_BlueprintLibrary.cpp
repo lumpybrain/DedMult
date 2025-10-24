@@ -13,7 +13,6 @@
 #include "Player/DMPlayerState.h"				// ADMPlayerState
 #include "Player/DMShip.h"						// ADMShip
 
-
 /*/////////////////////////////////////////////////////////////////////////////
 *	Building Command Initializers /////////////////////////////////////////////
 *//////////////////////////////////////////////////////////////////////////////
@@ -96,6 +95,7 @@ UDMCommand_BuildShip* UDMCommand_BlueprintLibrary::MakeCommand_BuildShip(ADMPlay
 	// Build it
 	UDMCommand_BuildShip* NewBuildCommand = NewObject<UDMCommand_BuildShip>();
 	NewBuildCommand->InitializeCommand(MakeCommandInit(pRequestingPlayer, pPlanetToBuildOn));
+
 	return NewBuildCommand;
 }
 

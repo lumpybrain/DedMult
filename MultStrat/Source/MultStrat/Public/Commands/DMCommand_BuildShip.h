@@ -41,6 +41,11 @@ public:
 	/** returns a string with the name of the command, what it does, and what it will operate on */
 	virtual FString CommandDebug_Implementation() const override;
 
+	/**
+	 * Create a new UObject of this command's type
+	 */
+	virtual UDMCommand* CopyCommand(struct FCommandPacket& Packet) override;
+
 	//~ End UDMCommand Interface
 
 };

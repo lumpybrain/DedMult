@@ -3,6 +3,7 @@
 
 #include "Commands/DMCommand_BuildShip.h"
 
+#include "Commands/DMCommand.h"					// FCommandPacket
 #include "Commands/DMCommandQueueSubsystem.h"	// LogCommands
 #include "Components/DMTeamComponent.h"			// UDMTeamComponent
 #include "GalaxyObjects/DMGalaxyNode.h"			// ADMGalaxyNode
@@ -106,4 +107,16 @@ FString UDMCommand_BuildShip::CommandDebug_Implementation() const /* override */
 	return FString::Printf(TEXT("Player %s attempting to build on planet %s"), 
 		IsValid(pOwningPlayer) ? *pOwningPlayer->GetName() : *FString("INVALID PLAYER"), 
 		IsValid(pTargetNode)   ? *pTargetNode->GetName()   : *FString("INVALID TARGET"));
+}
+
+/******************************************************************************
+ * returns a string with the name of the command, what it does, and what it
+ *		will operate on
+******************************************************************************/
+UDMCommand* UDMCommand_BuildShip::CopyCommand(FCommandPacket& Packet) /* override */
+{
+	UDMCommand_BuildShip* pNewCommand = NewObject<UDMCommand_BuildShip>();
+	pNewCommand->GetCopyCommandData(Packet.Data);
+
+	return pNewCommand;
 }

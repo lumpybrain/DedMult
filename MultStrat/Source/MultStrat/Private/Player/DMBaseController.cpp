@@ -3,7 +3,7 @@
 
 #include "Player/DMBaseController.h"
 
-#include "Commands/DMCommand.h"					// UDMCommand
+#include "Commands/DMCommand.h"					// UDMCommand, FCommandPacket
 #include "Commands/DMCommandQueueSubsystem.h"	// UDMCommandQueueSubsystem, LogCommands
 #include "GameSettings/DMGameState.h"			// ADMGameState
 #include "Net/UnrealNetwork.h"					// DOREPLIFETIME
@@ -14,12 +14,23 @@
 *//////////////////////////////////////////////////////////////////////////////
 
 /******************************************************************************
+ * Used by blueprints to send commands to the server
+******************************************************************************/
+void ADMBaseController::K2_QueueCommand(UDMCommand* Command)
+{
+	FCommandPacket NewPacket;
+	NewPacket.InitializePacket(Command);
+
+	QueueCommandOnServer(NewPacket);
+}
+
+/******************************************************************************
  * Queue a Command in the Command Queue Subsystem
  * Run on the server because thats where the subsystem is
  *
  * Server Function
 ******************************************************************************/
-void ADMBaseController::QueueCommand_Implementation(UDMCommand* Command)
+void ADMBaseController::QueueCommandOnServer_Implementation(FCommandPacket CommandInfo)
 {
 	UDMCommandQueueSubsystem* pCommandQueue = UDMCommandQueueSubsystem::Get(this);
 
@@ -28,7 +39,19 @@ void ADMBaseController::QueueCommand_Implementation(UDMCommand* Command)
 		return;
 	}
 
-	pCommandQueue->RegisterCommand(Command);
+	// Make a copy of the command
+
+	UObject* pObjectDefault = CommandInfo.CommandClass != nullptr ? CommandInfo.CommandClass->GetDefaultObject() : nullptr;
+	UDMCommand* pCommandDefault = Cast<UDMCommand>(pObjectDefault);
+	if (pCommandDefault == nullptr)
+	{
+		UE_LOG(LogCommands, Error, TEXT("ADMBaseController::QueueCommand: Invalid command passed into QueueCommand"))
+		return;
+	}
+
+	UDMCommand* pSubmittedCommand = pCommandDefault->CopyCommand(CommandInfo);
+
+	pCommandQueue->RegisterCommand(pSubmittedCommand);
 }
 
 /*/////////////////////////////////////////////////////////////////////////////
