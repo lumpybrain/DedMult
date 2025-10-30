@@ -14,14 +14,47 @@
 *//////////////////////////////////////////////////////////////////////////////
 
 /******************************************************************************
- * Used by blueprints to send commands to the server
+ * Queue commands in our local command list for the turn
 ******************************************************************************/
-void ADMBaseController::K2_QueueCommand(UDMCommand* Command)
+void ADMBaseController::QueueCommand(UDMCommand* pCommand)
 {
-	FCommandPacket NewPacket;
-	NewPacket.InitializePacket(Command);
+	if (!IsValid(pCommand))
+	{
+		return;
+	}
 
-	QueueCommandOnServer(NewPacket);
+	CommandsForTurn.Add(pCommand);
+	pCommand->CommandQueued();
+}
+
+/******************************************************************************
+ * Cancel a command in our local command list 
+ * returns true if command is canceled. 
+ * May return false if turn is submitted to server or the command DNE
+******************************************************************************/
+bool ADMBaseController::CancelCommand(UDMCommand* pCommand)
+{
+	if (!IsValid(pCommand))
+	{
+		return false;
+	}
+
+	if (bTurnSubmittedToServer)
+	{
+		UE_LOG(LogCommands, Error, TEXT("ADMBaseController::CancelCommand: Player %s tried to cancel a command locally after submitting its commands to the server"),
+			*GetName())
+			return false;
+	}
+
+	if (CommandsForTurn.Remove(pCommand) != 0)
+	{
+		pCommand->CommandUnqueued();
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }
 
 /******************************************************************************
@@ -30,7 +63,7 @@ void ADMBaseController::K2_QueueCommand(UDMCommand* Command)
  *
  * Server Function
 ******************************************************************************/
-void ADMBaseController::QueueCommandOnServer_Implementation(FCommandPacket CommandInfo)
+void ADMBaseController::QueueCommandsOnServer_Implementation(const TArray<FCommandPacket>& CommandPackets)
 {
 	UDMCommandQueueSubsystem* pCommandQueue = UDMCommandQueueSubsystem::Get(this);
 
@@ -40,18 +73,24 @@ void ADMBaseController::QueueCommandOnServer_Implementation(FCommandPacket Comma
 	}
 
 	// Make a copy of the command
-
-	UObject* pObjectDefault = CommandInfo.CommandClass != nullptr ? CommandInfo.CommandClass->GetDefaultObject() : nullptr;
-	UDMCommand* pCommandDefault = Cast<UDMCommand>(pObjectDefault);
-	if (pCommandDefault == nullptr)
+	for (int i = 0; i < CommandPackets.Num(); ++i)
 	{
-		UE_LOG(LogCommands, Error, TEXT("ADMBaseController::QueueCommand: Invalid command passed into QueueCommand"))
-		return;
+		const FCommandPacket& CommandInfo = CommandPackets[i];
+
+		UObject* pObjectDefault = CommandInfo.CommandClass != nullptr ? CommandInfo.CommandClass->GetDefaultObject() : nullptr;
+		UDMCommand* pCommandDefault = Cast<UDMCommand>(pObjectDefault);
+		if (pCommandDefault == nullptr)
+		{
+			UE_LOG(LogCommands, Error, TEXT("ADMBaseController::QueueCommand: Invalid command passed into QueueCommand"))
+				return;
+		}
+
+		UDMCommand* pSubmittedCommand = pCommandDefault->CopyCommand(CommandInfo);
+
+		pCommandQueue->RegisterCommand(pSubmittedCommand);
 	}
 
-	UDMCommand* pSubmittedCommand = pCommandDefault->CopyCommand(CommandInfo);
-
-	pCommandQueue->RegisterCommand(pSubmittedCommand);
+	ProcessSubmittedTurn();
 }
 
 /*/////////////////////////////////////////////////////////////////////////////
@@ -63,31 +102,33 @@ void ADMBaseController::QueueCommandOnServer_Implementation(FCommandPacket Comma
 ******************************************************************************/
 void ADMBaseController::SubmitTurn()
 {
-	ADMGameState* pDMGameState = ADMGameState::Get(this);
-
-	if (!IsValid(pDMGameState))
+	// Make sure we're allowed to attempt to submit a turn
+	ADMGameState* pDMState = VerifyTurnAllowed();
+	if (pDMState == nullptr)
 	{
-		UE_LOG(LogCommands, Error, TEXT("ADMPlayerState::SubmitTurn: Player %s tried to submit a turn, but couldn't get their local game state!"),
-			*GetName())
-
-			return;
+		return;
 	}
 
-	if (pDMGameState->IsProcessingATurn())
-	{
-		UE_LOG(LogCommands, Warning, TEXT("ADMPlayerState::SubmitTurn: Player %s tried to submit a turn, but we're still processing last turn's actions!"),
-			*GetName())
+	// broadcast the data to the server
+	bTurnSubmittedToServer = true;
 
-			return;
+	TArray<FCommandPacket> TurnPackets;
+	int CommandCount = 0;
+	for (TObjectPtr<UDMCommand> CurrCommand : CommandsForTurn)
+	{
+		TurnPackets.AddDefaulted();
+		TurnPackets[CommandCount].InitializePacket(CurrCommand);
+		++CommandCount;
 	}
 
-	ProcessSubmittedTurn(pDMGameState);
+	QueueCommandsOnServer(TurnPackets);
 }
 
 /******************************************************************************
- * Tell the server to check for if everyone has submitted their turn
+ * Server checks if everyone has submitted their turn
+ * Server Function
 ******************************************************************************/
-void ADMBaseController::ProcessSubmittedTurn_Implementation(ADMGameState* pDMGameState)
+void ADMBaseController::ProcessSubmittedTurn_Implementation()
 {
 	// We set the bool via the server so that we dont run into issues of
 	// checking if all turns have been submitted before replication trickles in
@@ -95,7 +136,14 @@ void ADMBaseController::ProcessSubmittedTurn_Implementation(ADMGameState* pDMGam
 	check(pDMPlayerState)
 	pDMPlayerState->SetTurnSubmitted(true);
 
-	pDMGameState->CheckAllPlayersTurnsSubmitted();
+	// Check to see if all of our players have submitted their turns
+	ADMGameState* pDMState = VerifyTurnAllowed();
+	if (pDMState == nullptr)
+	{
+		return;
+	}
+
+	pDMState->CheckAllPlayersTurnsSubmitted();
 }
 
 /******************************************************************************
@@ -106,6 +154,20 @@ void ADMBaseController::ServerFinishedProcessingTurn_Implementation()
 	ADMPlayerState* pDMPlayerState = GetPlayerState<ADMPlayerState>();
 	check(pDMPlayerState); 
 
+	if (!bTurnSubmittedToServer)
+	{
+		UE_LOG(LogCommands, Error, TEXT("ADMBaseController::ServerFinishedProcessingTurn: Player %s got word back from the server that it finished processing the turn... but we never submitted?"),
+			*pDMPlayerState->GetName())
+	}
+
+	// reset variables
+	for (UDMCommand* pCommand : CommandsForTurn)
+	{
+		pCommand->CommandUnqueued();
+	}
+	bTurnSubmittedToServer = false;
+	CommandsForTurn.Empty();
+
 	// make sure the bool is correct for anything listening to the event,
 	// replication has not had time to execute
 	pDMPlayerState->SetTurnSubmitted(false);
@@ -115,29 +177,77 @@ void ADMBaseController::ServerFinishedProcessingTurn_Implementation()
 /******************************************************************************
  * Called by UI/The player when they want to takesies backsies making a turn
  * May be blocked if a turn's actions are in the middle of being processed.
+ * 
+ * Server Function
 ******************************************************************************/
-void ADMBaseController::CancelTurn()
+void ADMBaseController::CancelTurn_Implementation()
 {
-	ADMGameState* pDMState = ADMGameState::Get(this);
-
-	if (!IsValid(pDMState))
+	UDMCommandQueueSubsystem* pCommandQueue = UDMCommandQueueSubsystem::Get(this);
+	if (!IsValid(pCommandQueue))
 	{
-		UE_LOG(LogCommands, Error, TEXT("ADMPlayerState::CancelTurn: Player %s tried to cancel a turn, but couldn't get their local game state!"),
-			*GetName())
-
-			return;
-	}
-
-	if (pDMState->IsProcessingATurn())
-	{
-		UE_LOG(LogCommands, Warning, TEXT("ADMPlayerState::CancelTurn: Player %s tried to cancel a turn, but we're still processing last turn's actions!"),
-			*GetName())
-
-			return;
+		UE_LOG(LogCommands, Error, TEXT("ADMBaseController::CancelTurn couldn't find the Command Queue Subsystem"))
+		return;
 	}
 
 	ADMPlayerState* pDMPlayerState = GetPlayerState<ADMPlayerState>();
 	check(pDMPlayerState)
 
+	pCommandQueue->CancelCommands(pDMPlayerState);
 	pDMPlayerState->SetTurnSubmitted(false);
+
+	// tell the client we're done
+	CommandsCancelled();
+}
+
+/******************************************************************************
+ * Called by the server when it has finished wiping its commands to tell the client its ok to
+ * access its command list again
+ * 
+ * Client Function
+******************************************************************************/
+void ADMBaseController::CommandsCancelled_Implementation()
+{
+	if (!bTurnSubmittedToServer)
+	{
+		ADMPlayerState* pDMPlayerState = GetPlayerState<ADMPlayerState>();
+		check(pDMPlayerState)
+
+		UE_LOG(LogCommands, Warning, TEXT("ADMBaseController::CommandsCancelled: Player %s was told by the server it cancelled its turn, but it didn't have a turn submitted?"),
+			*pDMPlayerState->GetName())
+	}
+
+	bTurnSubmittedToServer = false;
+}
+
+/******************************************************************************
+ * Grabs the game state, makes sure that we're allowed to submit a turn
+******************************************************************************/
+ADMGameState* ADMBaseController::VerifyTurnAllowed()
+{
+	FString RoleChecked("(Client)");
+	if (GetNetMode() < ENetMode::NM_Client)
+	{
+		RoleChecked = "(Server)";
+	}
+
+	ADMGameState* pDMGameState = ADMGameState::Get(this);
+	if (!IsValid(pDMGameState))
+	{
+		UE_LOG(LogCommands, Error, TEXT("ADMBaseController %s: Player %s tried to submit a turn, but couldn't get their game state!"),
+			*RoleChecked,
+			*GetName())
+
+			return nullptr;
+	}
+
+	if (pDMGameState->IsProcessingATurn())
+	{
+		UE_LOG(LogCommands, Warning, TEXT("ADMBaseController %s: Player %s tried to edit a turn, but we're still processing last turn's actions!"),
+			*RoleChecked,
+			*GetName())
+
+			return nullptr;
+	}
+
+	return pDMGameState;
 }

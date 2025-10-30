@@ -74,11 +74,9 @@ void UDMCommandQueueSubsystem::ExecuteCommandsForTurn()
 			*Command->CommandDebug())
 
 		Command->RunCommand();
-		Command->CommandUnregistered();
 	}
 
 	// prepare for next turn
-	CommandNumForTurn = 1;
 	ActiveCommands.Empty();
 
 	//ADMGameState* pDMState = ADMGameState::Get(this);
@@ -94,17 +92,17 @@ void UDMCommandQueueSubsystem::ExecuteCommandsForTurn()
  * Registers a command with the subsystem.
  * Returns the command ID to be stored if a command is requested to be cancelled
 ******************************************************************************/
-int UDMCommandQueueSubsystem::RegisterCommand(UDMCommand* Command)
+bool UDMCommandQueueSubsystem::RegisterCommand(UDMCommand* Command)
 {
 	if (!IsValid(Command))
 	{
 		UE_LOG(LogCommands, Warning, TEXT("UDMCommandQueueSubsystem::RegisterCommand: Null Command Requested!"))
-		return 0;
+		return false;
 	}
 	if (!Command->Validate())
 	{
 		UE_LOG(LogCommands, Warning, TEXT("UDMCommandQueueSubsystem::RegisterCommand: Command Invalid! (Was it initialized properly?)"))
-		return 0;
+		return false;
 	}
 
 	// get the priority for the command set properly
@@ -118,17 +116,13 @@ int UDMCommandQueueSubsystem::RegisterCommand(UDMCommand* Command)
 
 
 	// register with subsystem
-	Command->SetID(CommandNumForTurn);
-	++CommandNumForTurn;
-
 	ActiveCommands.Add(Command);
-	Command->CommandRegistered();
 
 	UE_LOG(LogCommands, Display, TEXT("Command for player %s registered (%s)"), 
 			*Command->GetOwningPlayer()->GetName(), 
 			*Command->CommandDebug())
 
-	return Command->GetID();
+	return true;
 }
 
 /******************************************************************************
@@ -136,36 +130,43 @@ int UDMCommandQueueSubsystem::RegisterCommand(UDMCommand* Command)
  * Returns if the command was succesfully cancelled 
 		(i.e, maybe the wrong player requesting cancellation)
 ******************************************************************************/
-bool UDMCommandQueueSubsystem::CancelCommand(const ADMPlayerState* Player, int CommandID)
+void UDMCommandQueueSubsystem::CancelCommands_Implementation(const ADMPlayerState* Player)
 {
-	for (int i = 0; i < ActiveCommands.Num(); ++i)
+	bool bFoundPlayer = false;
+	size_t PlayerStartPos = 0;
+	size_t PlayerEndPos = ActiveCommands.Num();
+	for (size_t i = 0; i < ActiveCommands.Num() ; ++i)
 	{
-		if (ActiveCommands[i]->GetID() == CommandID)
+		if (ActiveCommands[i]->GetOwningPlayer() == Player)
 		{
-			const ADMPlayerState* CommandPlayer = ActiveCommands[i]->GetOwningPlayer();
-			
-			// Is the right player trying to cancel?
-			if (ActiveCommands[i]->GetOwningPlayer()->GetPlayerId() != Player->GetPlayerId())
+			if (!bFoundPlayer)
 			{
-				UE_LOG(LogCommands, Warning, TEXT("Player %s just tried to cancel Command Key %d, owned by player %s! (Command: %s)"),
-					   *Player->GetName(), CommandID, *CommandPlayer->GetName(), *ActiveCommands[i]->CommandDebug())
-				
-				return false;
+				bFoundPlayer = true;
+				PlayerStartPos = i;
 			}
-			// We're good; cancel it
-			else
-			{
-				UE_LOG(LogCommands, Warning, TEXT("Player %s just cancelled Command %s "), *CommandPlayer->GetName(),
-					*ActiveCommands[i]->CommandDebug())
 
-				ActiveCommands[i]->CommandUnregistered();
-				ActiveCommands.RemoveAt(i);
-				return true;
-			}
+			UE_LOG(LogCommands, Display, TEXT("Player %s is trying to cancel Command %s"), 
+				*Player->GetName(),
+				*ActiveCommands[i]->CommandDebug())
+		}
+		else if (bFoundPlayer)
+		{
+			PlayerEndPos = i;
+			break;
 		}
 	}
 
-
-	UE_LOG(LogCommands, Error, TEXT("%s tried to cancel command ID %d, which does not exist!"), *Player->GetName(), CommandID)
-	return false;
+	// DMTODO turn ActiveCommands to LinkedList for cleaner removal
+	if (bFoundPlayer)
+	{
+		ActiveCommands.RemoveAt(PlayerStartPos, PlayerEndPos - PlayerStartPos, EAllowShrinking::Yes);
+		UE_LOG(LogCommands, Display, TEXT("Player %s cancelled %d Commands"),
+			*Player->GetName(),
+			PlayerEndPos - PlayerStartPos)
+	}
+	else
+	{
+		UE_LOG(LogCommands, Display, TEXT("Player %s tried to cancel all their commands, but had no commands queued"),
+			*Player->GetName())
+	}
 }

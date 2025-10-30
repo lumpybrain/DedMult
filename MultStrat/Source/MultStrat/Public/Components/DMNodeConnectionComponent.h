@@ -9,10 +9,11 @@
 #include "DMNodeConnectionComponent.generated.h"
 
 class ADMGalaxyNode;
+class ADMShip;
 class USplineComponent;
 
 /**
- * 
+ * Connector Actor, used to draw visualization between nodes for the player
  */
 UCLASS(Blueprintable)
 class MULTSTRAT_API ADMConnector : public ASplineMeshActor
@@ -22,6 +23,14 @@ class MULTSTRAT_API ADMConnector : public ASplineMeshActor
 public:
 	UFUNCTION(BlueprintImplementableEvent, meta = (ForceAsFunction))
 	void InitializeSplineMesh(const ADMGalaxyNode* StartingNode, const ADMGalaxyNode* EndingNode);
+
+	void SetTraversingShip(ADMShip* NewShip)	{ TraversingShip = NewShip; }
+	ADMShip* GetTraversingShip()				{ return TraversingShip; }
+
+protected:
+	/** Used while commands are running to check for "bounce" situations where 2 ships use the same connector */
+	UPROPERTY()
+	TObjectPtr<ADMShip> TraversingShip;
 };
 
 /**
@@ -32,6 +41,7 @@ class MULTSTRAT_API UDMNodeConnectionComponent : public UActorComponent
 {
 	GENERATED_BODY()
 public:
+
 	/** This doesn't need to tick, turn it off in constructor*/
 	UDMNodeConnectionComponent(const FObjectInitializer& ObjectInitializer);
 
@@ -44,6 +54,13 @@ public:
 	virtual void BeginPlay() override;
 
 	//~ End UActorComponent Interface
+
+	/**
+	 * Reserve a connector from this planet to another planet
+	 * Returns true if the spot is reserved; returns false if the connector is in use, or if the connection DNE
+	 * If this function is called while another ship has reserved the conector, we will "bounce" that ship's movement
+	 */
+	bool ReserveShipTraversal(ADMGalaxyNode* TargetNode, ADMShip* ReservingShip);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated)
 	TArray<const ADMGalaxyNode*> ConnectedNodes;

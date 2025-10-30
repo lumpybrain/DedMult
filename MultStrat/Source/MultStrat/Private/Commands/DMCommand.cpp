@@ -21,19 +21,6 @@ bool UDMCommand::RunCommand_Implementation() const
 	return false;
 }
 
-/******************************************************************************
- * ID Settor with debug
-******************************************************************************/
-void UDMCommand::SetID(uint16 NewID)
-{
-	if (CommandID != 0)
-	{
-		UE_LOG(LogCommands, Warning, TEXT("Command \"%s\" was assigned a new ID despite having an assigned ID (Old: %d. New: %d)"), *GetClass()->GetFName().ToString(), CommandID, NewID)
-	}
-
-	CommandID = NewID;
-}
-
 /*/////////////////////////////////////////////////////////////////////////////
 *	Command Management Functions //////////////////////////////////////////////
 *//////////////////////////////////////////////////////////////////////////////
@@ -72,7 +59,7 @@ bool UDMCommand::Validate_Implementation() const
  *		don't have to wait for unreal's automatic replication to copy the data over for us;
  *		not all clients need a copy of the command, just the server.
 ******************************************************************************/
-UDMCommand* UDMCommand::CopyCommand(FCommandPacket& Packet)
+UDMCommand* UDMCommand::CopyCommand(const FCommandPacket& Packet)
 {
 	UDMCommand* pNewCommand = NewObject<UDMCommand>();
 	pNewCommand->GetCopyCommandData(Packet.Data);
@@ -89,7 +76,7 @@ void UDMCommand::FillCopyCommandData(TArray<TObjectPtr<UObject>>& CommandData)
 	CommandData.Add(pTargetNode);
 }
 
-void UDMCommand::GetCopyCommandData(TArray<TObjectPtr<UObject>>& CommandData)
+void UDMCommand::GetCopyCommandData(const TArray<TObjectPtr<UObject>>& CommandData)
 {
 	if (CommandData.Num() < 2)
 	{

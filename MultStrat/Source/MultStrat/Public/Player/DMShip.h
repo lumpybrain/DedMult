@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Engine/StaticMeshActor.h"
+#include "GalaxyObjects/DMBaseGalaxyObject.h"
 #include "DMShip.generated.h"
 
 class ADMGalaxyNode;
@@ -13,7 +13,7 @@ class ADMPlayerState;
  * Base class for ships players will use to conquer or collect resources
  */
 UCLASS()
-class MULTSTRAT_API ADMShip : public AStaticMeshActor
+class MULTSTRAT_API ADMShip : public ADMBaseGalaxyObject
 {
 	GENERATED_BODY()
 	
@@ -37,17 +37,21 @@ public:
 	virtual bool IsNodeReachable_Implementation(const ADMGalaxyNode* TargetNode) const;
 
 	UFUNCTION(BlueprintCallable)
-	ADMPlayerState* GetOwningPlayer()				{ return OwningPlayer; }
-	void SetOwningPlayer(ADMPlayerState* NewOwner)	{ OwningPlayer = NewOwner; }
+	ADMPlayerState* GetOwningPlayer()					{ return OwningPlayer; }
+	UFUNCTION(BlueprintCallable)
+	const ADMPlayerState* GetOwningPlayerConst() const	{ return OwningPlayer; }
+	void SetOwningPlayer(ADMPlayerState* NewOwner)		{ OwningPlayer = NewOwner; }
 
-	/** Team that owns the ship and can issue it commands */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<class UDMTeamComponent> TeamComponent;
+	int GetShipPower() const							{ return ShipPower;}
 
 protected:
 
 	/** Player that owns the ship for debug/possibility of alliances in the future */
 	UPROPERTY(BlueprintReadWrite, Replicated)
 	TObjectPtr<ADMPlayerState> OwningPlayer;
+
+	/** Power of the ship used for Attacking/Supporting other nodes */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	int ShipPower = 1;
 	
 };

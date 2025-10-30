@@ -10,14 +10,6 @@
 /******************************************************************************
  * Replication
 ******************************************************************************/
-ADMPlanet::ADMPlanet(const FObjectInitializer& ObjectInitializer)
-	: Super (ObjectInitializer)
-{
-	TeamComponent = CreateDefaultSubobject<UDMTeamComponent>(TEXT("Team Component"));
-}
-/******************************************************************************
- * Replication
-******************************************************************************/
 void ADMPlanet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const /* override */
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);

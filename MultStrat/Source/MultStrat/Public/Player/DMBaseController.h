@@ -8,6 +8,7 @@
 
 
 class UDMCommand;
+class ADMGameState;
 struct FCommandPacket;
 
 /**
@@ -25,9 +26,17 @@ public:
 	//~=============================================================================
 	// Commands
 
-	/** Used by blueprints to send commands to the server */
+	/** Queue commands in our local command list for the turn */
 	UFUNCTION(BlueprintCallable)
-	void K2_QueueCommand(UDMCommand* Command);
+	void QueueCommand(UDMCommand* Command);
+
+	/** 
+	 * Cancel a command in our local command list 
+	 * returns true if command is canceled. 
+	 * May return false if turn is submitted to server or the command DNE
+	 */
+	UFUNCTION(BlueprintCallable)
+	bool CancelCommand(UDMCommand* Command);
 	
 	/**
 	 * Queue a Command in the Command Queue Subsystem
@@ -37,8 +46,8 @@ public:
 	 * to simulate in case we are not on the server!
 	 */
 	UFUNCTION(Reliable, Server)
-	void QueueCommandOnServer(FCommandPacket CommandInfo);
-	void QueueCommandOnServer_Implementation(FCommandPacket CommandInfo);
+	void QueueCommandsOnServer(const TArray<FCommandPacket>& CommandInfo);
+	void QueueCommandsOnServer_Implementation(const TArray<FCommandPacket>& CommandInfo);
 
 	//~=============================================================================
 	// Turn Management
@@ -47,10 +56,10 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void SubmitTurn();
 
-	/** Tell the server to check for if everyone has submitted their turn */
+	/** Should only be called on by server, utility function to kick us up to the game state */
 	UFUNCTION(Reliable, Server)
-	void ProcessSubmittedTurn(ADMGameState* DMGameState);
-	virtual void ProcessSubmittedTurn_Implementation(ADMGameState* DMGameState);
+	void ProcessSubmittedTurn();
+	virtual void ProcessSubmittedTurn_Implementation();
 
 	UFUNCTION(Client, Reliable)
 	void ServerFinishedProcessingTurn();
@@ -63,12 +72,36 @@ public:
 	 * Called by UI/The player when they want to takesies backsies making a turn
 	 * may be blocked if a turn's actions are in the middle of being processed.
 	 */
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Reliable, Server)
 	void CancelTurn();
+	void CancelTurn_Implementation();
+
+	/**
+	 * Called by the server when it has finished wiping its commands to tell the client its ok to
+	 * access its command list again
+	 */
+	UFUNCTION(Reliable, Client)
+	void CommandsCancelled();
+	void CommandsCancelled_Implementation();
 
 protected:
 
+	/** grabs the game state, makes sure that we're allowed to submit a turn */
+	ADMGameState* VerifyTurnAllowed();
 
+	/** 
+	 * local array used for storage before submitting our commands
+	 * must be UPROPERTY so TObjectPtr stops garbage collection
+	 */
+	UPROPERTY()
+	TSet<TObjectPtr<UDMCommand>> CommandsForTurn;
+
+	/** 
+	 * local bool for if we have attempted to submit our turn
+	 * may differ from bool in player state, which is replicated back to us
+	 * after the server has received and processed our turn submission
+	 */
+	bool bTurnSubmittedToServer = false;
 	
 
 };

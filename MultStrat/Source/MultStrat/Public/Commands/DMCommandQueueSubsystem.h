@@ -51,23 +51,18 @@ public:
 	 * Returns the command ID to be stored if a command is requested to be cancelled
 	 */
 	UFUNCTION(BlueprintCallable, meta = (DevelopmentOnly, ToolTip = "Note: Requesting Commands only works on the server, because the CommmandQueueSubsystem only runs on the server!\nTry using your local player controller to request/cancel commands!"))
-	int RegisterCommand(UDMCommand* Command);
+	bool RegisterCommand(UDMCommand* Command);
 
 	/**
 	 * Unregisters a command with the subsystem.
 	 * Returns if the command was succesfully cancelled (i.e, maybe the wrong player requesting cancellation)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (DevelopmentOnly, ToolTip = "Note: Cancelling Commands only works on the server, because the CommmandQueueSubsystem only runs on the server!\nTry using your local player controller to request/cancel commands!"))
-	bool CancelCommand(const ADMPlayerState* Player, int CommandID);
+	UFUNCTION(BlueprintCallable, Server, Reliable, meta = (DevelopmentOnly, ToolTip = "Note: Cancelling Commands only works on the server, because the CommmandQueueSubsystem only runs on the server!\nTry using your local player controller to request/cancel commands!"))
+	void CancelCommands(const ADMPlayerState* Player);
+	void CancelCommands_Implementation(const ADMPlayerState* Player);
 
 private:
-	/** Array of all active commands (DMTODO : Tmap.Was array becuase of replication concerns) */
-	TArray<UDMCommand*> ActiveCommands;
-
-	/** 
-	 * Counter to give commands unique ID's
-	 * Note: 0 is reserved for Unregistered Commands 
-	 */
-	uint16 CommandNumForTurn = 1;
-	
+	/** Array of all active commands */
+	UPROPERTY()
+	TArray<TObjectPtr<UDMCommand>> ActiveCommands;
 };

@@ -4,6 +4,7 @@
 #include "GalaxyObjects/DMGalaxyNode.h"
 
 #include "Commands/DMCommand.h"						// UDMCommand
+#include "Components/DMCommandFlagsComponent.h"		// UDMActiveCommandsComponent
 #include "Components/DMNodeConnectionComponent.h"	// UDMNodeConnectionComponent
 #include "Components/DMTeamComponent.h"				// EDMPlayerTeam
 #include "GameSettings/DMGameMode.h"				// ADMGameMode
@@ -36,64 +37,87 @@ void ADMGalaxyNode::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 *//////////////////////////////////////////////////////////////////////////////
 
 /******************************************************************************
+ * Check all pending ships and see if the math works out where no matter what happens
+ * in other combats, this node can safely resolve
+******************************************************************************/
+bool ADMGalaxyNode::CanResolveTurn()
+{
+	// 1; No pending ships = resolvable
+	if (PendingShips.IsEmpty())
+	{
+		return true;
+	}
+
+	// 2: Current ship on node is Not Moving or DNE  = resolvable
+	ADMShip* CurrShip = GetShip();
+	if (CurrShip == nullptr || !CurrShip->CommandsComponent->CheckForCommandFlags(ECommandFlags::MovingShip))
+	{
+		return true;
+	}
+
+	// 3; current ship Does not matter for result (win or tie for home team without it)  = resolvable
+	// Map of all teams trying to take control of the planet; mapping their team to the main attacking ship and the total power of their fleet
+	TMap<EDMPlayerTeam, TPair<ADMShip*, size_t>> Powers;
+	GetPendingPowers(Powers);
+
+	// Find the winner
+	size_t HighestPower = 0;
+	size_t PowerDiff = 0;
+	EDMPlayerTeam WinningTeam = EDMPlayerTeam::Invalid;
+	for (auto TeamPower : Powers)
+	{
+		EDMPlayerTeam eTeam = TeamPower.Key;
+		ADMShip* pShipPtr = TeamPower.Value.Key;
+		size_t Power = TeamPower.Value.Value;
+
+		if (pShipPtr == nullptr)
+		{
+			continue;
+		}
+
+		if (Power > HighestPower)
+		{
+			PowerDiff = Power - HighestPower;
+			HighestPower = Power;
+			WinningTeam = eTeam;
+		}
+		else if (Power == HighestPower)
+		{
+			// No winner in the case of a tie
+			WinningTeam = EDMPlayerTeam::Invalid;
+			PowerDiff = 0;
+		}
+	}
+	if (WinningTeam == TeamComponent->GetTeam() &&
+		PowerDiff >= CurrShip->GetShipPower())
+	{
+		return true;
+	}
+
+	// Not Resolvable
+	return false;
+}
+
+/******************************************************************************
  * Resolve all pending ships after all the commands have executed for a turn
 ******************************************************************************/
 void ADMGalaxyNode::ResolveTurn()
 {
+	// No work to be done
+	if (PendingShips.IsEmpty())
+	{
+		return;
+	}
+
 	// Map of all teams trying to take control of the planet; mapping their team to the main attacking ship and the total power of their fleet
 	TMap<EDMPlayerTeam, TPair<ADMShip*, size_t>> Powers;
+	GetPendingPowers(Powers);
 
-	// Account for the current ship on the planet (if there is one)
-	if (IsValid(CurrentShip))
-	{
-		Powers.Add(CurrentShip->TeamComponent->GetTeam(), TPair<ADMShip*, size_t>(CurrentShip, 1));
-	}
 
-	// Process all pending ships
-	for (TPair<TObjectPtr<ADMShip>, bool> AttemptedShip : PendingShips)
-	{
-		ADMShip* pShipPtr = AttemptedShip.Key;
-		bool Supporting = AttemptedShip.Value;
-
-		TPair<ADMShip*, size_t>* CurrentAttacking = Powers.Find(pShipPtr->TeamComponent->GetTeam());
-
-		// Attacker: No previous attacker -> Add the team to the map
-		// Supporter: No previous attacker -> Add the team to the map
-		// Attacker: Yes previous attacker -> Ignore
-		// Supporter: Yes previous attacker -> increment power
-		if (CurrentAttacking == nullptr)
-		{
-			// this could be one line but it would be really annoying to read
-			if (Supporting)
-			{
-				Powers.Add(pShipPtr->TeamComponent->GetTeam(), TPair<ADMShip*, size_t>(nullptr, 1));
-			}
-			else
-			{
-				Powers.Add(pShipPtr->TeamComponent->GetTeam(), TPair<ADMShip*, size_t>(pShipPtr, 1));
-			}
-		}
-		else
-		{
-			if (Supporting)
-			{
-				++CurrentAttacking->Value;
-			}
-			else if (CurrentAttacking->Key != nullptr)
-			{
-				CurrentAttacking->Key = pShipPtr;
-				++CurrentAttacking->Value;
-			}
-			else
-			{
-				FString EnumName = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)pShipPtr->TeamComponent->GetTeam());
-				UE_LOG(LogGalaxy, Warning, TEXT("%s: Multiple attacking ships from team %s."),
-					*GetName(),
-					*EnumName)
-				// Ignore the secondary attacking ship
-			}
-		}
-	}
+	FString NodeTeam = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)TeamComponent->GetTeam());
+	UE_LOG(LogGalaxy, Display, TEXT("%s combat results (Previous Owner: %s): "),
+		*GetName(),
+		*NodeTeam)
 
 	// Find the winner
 	size_t HighestPower = 0;
@@ -105,8 +129,7 @@ void ADMGalaxyNode::ResolveTurn()
 		size_t Power = TeamPower.Value.Value;
 
 		FString EnumName = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)eTeam);
-		FString AttackDebug = FString::Printf(TEXT("%s: Attacked by team %s with power %d"),
-			*GetName(),
+		FString AttackDebug = FString::Printf(TEXT("	Attacked by team %s with power %d"),
 			*EnumName,
 			Power);
 
@@ -136,10 +159,8 @@ void ADMGalaxyNode::ResolveTurn()
 	{
 		// debug
 		FString WinnerEnumName = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)WinningShip->TeamComponent->GetTeam());
-		UE_LOG(LogGalaxy, Display, TEXT("%s: Captured by team %s with power %d"),
-			*GetName(),
-			*WinnerEnumName,
-			HighestPower);
+		UE_LOG(LogGalaxy, Display, TEXT("	The winner is %s!"),
+			*WinnerEnumName);
 
 		if (IsValid(CurrentShip) && CurrentShip != WinningShip)
 		{
@@ -149,71 +170,13 @@ void ADMGalaxyNode::ResolveTurn()
 
 		SetCurrentShip(WinningShip);
 	}
-}
-
-/******************************************************************************
- * Used by a team to register a ship is incoming
- * Only matters to the local player, so they can't do multiple commands to send
- *		a ship to one node
-******************************************************************************/
-bool ADMGalaxyNode::SetIncomingShip(bool Incoming, const UDMCommand* NewOwningCommand)
-{
-	if (!IsValid(NewOwningCommand))
-	{
-		UE_LOG(LogGalaxy, Error, TEXT("%s: Invalid Command tried to set Incoming Ship to %s (Was: %s%s)."),
-			*GetName(),
-			Incoming ? TEXT("True") : TEXT("False"),
-			IncomingShip ? TEXT("True") : TEXT("False"),
-			IsValid(IncomingShipCommand) ? *FString::Printf(TEXT(" (%s)"), *IncomingShipCommand->CommandDebug()) : TEXT(""))
-
-			return false;
-	}
-
-	if (Incoming)
-	{
-		if (IncomingShip)
-		{
-			// It shouldn't be possible for the command to be invalid but the bool to be true; let this crash loud for now
-			UE_LOG(LogGalaxy, Error, TEXT("%s: Command \"%s\" tried to own IncomingShip, but it is already owned by command \"%s\"."),
-				*GetName(),
-				*NewOwningCommand->CommandDebug(),
-				*IncomingShipCommand->CommandDebug())
-
-				return false;
-		}
-
-		UE_LOG(LogGalaxy, Display, TEXT("%s: Incoming Ship from Command \"%s\"."),
-			*GetName(),
-			*NewOwningCommand->CommandDebug())
-	}
 	else
 	{
-		if (!IncomingShip)
-		{
-			UE_LOG(LogGalaxy, Warning, TEXT("%s: Command \"%s\" is clearing Incoming Ship, but no ship was incoming."),
-				*GetName(),
-				*NewOwningCommand->CommandDebug())
-		}
-		else if (NewOwningCommand != IncomingShipCommand)
-		{
-			UE_LOG(LogGalaxy, Error, TEXT("%s: Command \"%s\" tried to clear Incoming Ship, but it's owned by Command \"%s\"."),
-				*GetName(),
-				*NewOwningCommand->CommandDebug(),
-				*IncomingShipCommand->CommandDebug())
-
-				return false;
-		}
-		else
-		{
-			UE_LOG(LogGalaxy, Display, TEXT("%s: Incoming Ship cleared by Command \"%s\"."),
-				*GetName(),
-				*NewOwningCommand->CommandDebug())
-		}
+		UE_LOG(LogGalaxy, Display, TEXT("There is no winner!"));
 	}
 
-	IncomingShipCommand = NewOwningCommand;
-	IncomingShip = Incoming;
-	return true;
+	// Cleanup
+	PendingShips.Empty();
 }
 
 /******************************************************************************
@@ -252,28 +215,41 @@ bool ADMGalaxyNode::AddPendingShip(ADMShip* NewShip, bool Supporting, const UDMC
 			return false;
 	}
 
-	PendingShips.Add(TPair<TObjectPtr<ADMShip>, bool>(NewShip, Supporting));
+	PendingShips.Add(NewShip, Supporting);
 	return true;
+}
+
+/******************************************************************************
+ * Can be called when ships are bounced, or their movement is
+ *		invalidated in some other way
+******************************************************************************/
+bool ADMGalaxyNode::RemovePendingShip(ADMShip* NewShip)
+{
+	return PendingShips.Remove(NewShip) != 0;
+}
+
+/******************************************************************************
+ * Checks with the connection component to see if the ship can traverse to the 
+ *		requested node
+ * returns true if successful, false otherwise
+******************************************************************************/
+bool ADMGalaxyNode::ReserveTraversalTo(ADMGalaxyNode* TargetNode, ADMShip* ReservingShip)
+{
+	check(ConnectionManagerComponent)
+	if(!IsValid(ConnectionManagerComponent))
+	{
+		UE_LOG(LogGalaxy, Error, TEXT("%s was probed for traversal by %s to %s, but the connection manager component DNE?"),
+			*GetName(),
+			IsValid(ReservingShip) ? *ReservingShip->GetName() : TEXT("(INVALID SHIP)"),
+			IsValid(TargetNode) ? *TargetNode->GetName() : TEXT("(INVALID NODE)"))
+	}
+
+	return ConnectionManagerComponent->ReserveShipTraversal(TargetNode, ReservingShip);
 }
 
 /*/////////////////////////////////////////////////////////////////////////////
 *	Query/Write Functions /////////////////////////////////////////////////////
 *//////////////////////////////////////////////////////////////////////////////
-
-/******************************************************************************
- * Gettor with debug output
-******************************************************************************/
-bool ADMGalaxyNode::K2_HasIncomingShip(FString& OutOwningCommandDebug) const
-{
-	OutOwningCommandDebug = IsValid(IncomingShipCommand) ? IncomingShipCommand->CommandDebug() : TEXT("None");
-	return IncomingShip;
-}
-
-
-UDMNodeConnectionComponent* ADMGalaxyNode::GetConnectionManager() const
-{ 
-	return ConnectionManagerComponent; 
-}
 
 /******************************************************************************
  * A ship has moved here, conquered here, been built here, etc.
@@ -298,6 +274,12 @@ void ADMGalaxyNode::SetCurrentShip(ADMShip* NewShip)
 		return;
 	}
 
+	// remove it from its current node
+	if (ADMGalaxyNode* pParent = Cast<ADMGalaxyNode>(NewShip->GetCurrentNode()))
+	{
+		pParent->RemoveShip();
+	}
+
 	// Get the gamemode
 	UWorld* pWorld = GetWorld();
 	AGameModeBase* pGameModeBase = IsValid(pWorld) ? pWorld->GetAuthGameMode() : nullptr;
@@ -318,4 +300,65 @@ void ADMGalaxyNode::SetCurrentShip(ADMShip* NewShip)
 	// (TF2 Heavy voice) OURS NOW
 	CurrentShip = NewShip;
 
+}
+
+/******************************************************************************
+ * Calculate the power of all factions attack this node
+******************************************************************************/
+void ADMGalaxyNode::GetPendingPowers(TMap<EDMPlayerTeam, TPair<ADMShip*, size_t>>& Powers)
+{
+	// Account for the current ship on the planet (if there is one)
+	if (IsValid(CurrentShip))
+	{
+		Powers.Add(CurrentShip->TeamComponent->GetTeam(), TPair<ADMShip*, size_t>(CurrentShip, 1));
+	}
+
+	// Process all pending ships
+	for (auto AttemptedShip : PendingShips)
+	{
+		ADMShip* pShipPtr = AttemptedShip.Key;
+		bool Supporting = AttemptedShip.Value;
+
+		TPair<ADMShip*, size_t>* CurrentAttacking = Powers.Find(pShipPtr->TeamComponent->GetTeam());
+
+		// Attacker: No previous attacker -> Add the team to the map
+		// Supporter: No previous attacker -> Add the team to the map
+		// Attacker: Yes previous attacker -> Ignore
+		// Supporter: Yes previous attacker -> increment power
+		if (CurrentAttacking == nullptr)
+		{
+			// this could be one line but it would be really annoying to read
+			if (Supporting)
+			{
+				Powers.Add(pShipPtr->TeamComponent->GetTeam(), TPair<ADMShip*, size_t>(nullptr, pShipPtr->GetShipPower()));
+			}
+			else
+			{
+				Powers.Add(pShipPtr->TeamComponent->GetTeam(), TPair<ADMShip*, size_t>(pShipPtr, pShipPtr->GetShipPower()));
+			}
+		}
+		else
+		{
+			if (Supporting)
+			{
+				++CurrentAttacking->Value;
+			}
+			else if (CurrentAttacking->Key != nullptr)
+			{
+				CurrentAttacking->Key = pShipPtr;
+				++CurrentAttacking->Value;
+			}
+			// Just ignore the ship if there are multiple attackers
+			// TMDOTO: Imagine a situation:
+			// Planet A (Team1) has a ship of power 1
+			// Planet B (Team1) has a ship of power 1
+			// Planet C (Team2)has a ship of power 2
+			// 
+			// C Is attacking A
+			// A's ship wants to move to some planet D, but doesn't know if it will bounce
+			// if A bounces and B Supports A, A defends successfully
+			// if A bounces and B Moves to A, A fails defense (B cannot move to A, power not counted)
+			// Note; it's not like team 1 will KNOW C is attacking A, so they wont know; move or support?
+		}
+	}
 }

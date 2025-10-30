@@ -32,6 +32,11 @@ UCLASS()
 class MULTSTRAT_API UDMCommand_MoveShip : public UDMCommand
 {
 	GENERATED_BODY()
+
+public:
+
+	/** Constructor: Set command flag */
+	UDMCommand_MoveShip(const FObjectInitializer& ObjectInitializer);
 	
 	//~ Begin UDMCommand Interface
 
@@ -39,10 +44,10 @@ class MULTSTRAT_API UDMCommand_MoveShip : public UDMCommand
 	virtual bool RunCommand_Implementation() const override;
 
 	/** When we register, tell our target planet that a ship is incoming! */
-	virtual void CommandRegistered_Implementation() override;
+	virtual void CommandQueued_Implementation() override;
 
 	/** When we unregister, tell our target planet no ship is coming anymore! */
-	virtual void CommandUnregistered_Implementation() override;
+	virtual void CommandUnqueued_Implementation() override;
 
 	/**
 	 * Initialize variables.InitVariables must be of class UDMCommandInitMoveShip.
@@ -61,7 +66,7 @@ class MULTSTRAT_API UDMCommand_MoveShip : public UDMCommand
 	virtual FString CommandDebug_Implementation() const override;
 
 	/** create a new moveship command object based on input data */
-	virtual UDMCommand* CopyCommand(struct FCommandPacket& Packet) override;
+	virtual UDMCommand* CopyCommand(const struct FCommandPacket& Packet) override;
 	
 	/** Fill data for future use of CopyCommand calls */
 	virtual void FillCopyCommandData(TArray<TObjectPtr<UObject>> &CommandData) override;
@@ -69,7 +74,7 @@ class MULTSTRAT_API UDMCommand_MoveShip : public UDMCommand
 protected:
 
 	/** Get data for CopyCommand calls */
-	virtual void GetCopyCommandData(TArray<TObjectPtr<UObject>>& CommandData) override;
+	virtual void GetCopyCommandData(const TArray<TObjectPtr<UObject>>& CommandData) override;
 
 	//~ End UDMCommand Interface
 
@@ -77,4 +82,8 @@ protected:
 	/** Ship that this command wants to move. Should be owned by the command's owning player. */
 	UPROPERTY(BlueprintReadOnly, meta = (DisplayName = "Ship"))
 	TObjectPtr<ADMShip> pShip;
+
+	/** Node the ship started on; stored to properly clear flags after the command runs */
+	UPROPERTY(BlueprintReadOnly, meta = (DisplayName = "Original Node"))
+	TObjectPtr<ADMGalaxyNode> pOriginalNode;
 };

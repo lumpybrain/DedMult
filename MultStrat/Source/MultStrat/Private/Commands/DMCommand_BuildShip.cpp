@@ -5,12 +5,22 @@
 
 #include "Commands/DMCommand.h"					// FCommandPacket
 #include "Commands/DMCommandQueueSubsystem.h"	// LogCommands
+#include "Components/DMCommandFlagsComponent.h"	// UDMActiveCommandsComponent
 #include "Components/DMTeamComponent.h"			// UDMTeamComponent
 #include "GalaxyObjects/DMGalaxyNode.h"			// ADMGalaxyNode
 #include "GalaxyObjects/DMPlanet.h"				// ADMPlanet
 #include "GameSettings/DMGameMode.h"			// ADMGameMode
 #include "Player/DMPlayerState.h"				// ADMPlayerState
 #include "Player/DMShip.h"						// ADMShip
+
+/******************************************************************************
+ * Constructor: set command flag
+******************************************************************************/
+UDMCommand_BuildShip::UDMCommand_BuildShip(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	CommandFlags = ECommandFlags::MovingShip;
+}
 
 /*/////////////////////////////////////////////////////////////////////////////
 *	UDMCommand Interface //////////////////////////////////////////////////////
@@ -45,7 +55,7 @@ bool UDMCommand_BuildShip::RunCommand_Implementation() const /* override */
 	}
 	if (pTargetNode->HasShip())
 	{
-		UE_LOG(LogCommands, Error, TEXT("UDMCommand_BuildShip::RunCommand: Tried to build ship on invalid target %s"),
+		UE_LOG(LogCommands, Error, TEXT("UDMCommand_BuildShip::RunCommand: Tried to build ship on %s, but it has a ship!"),
 			*pTargetNode->GetName())
 
 		return false;
@@ -59,17 +69,19 @@ bool UDMCommand_BuildShip::RunCommand_Implementation() const /* override */
 /******************************************************************************
  * When we register, tell our target planet that a ship is incoming!
 ******************************************************************************/
-void UDMCommand_BuildShip::CommandRegistered_Implementation() /* override */
+void UDMCommand_BuildShip::CommandQueued_Implementation() /* override */
 {
-	pTargetNode->SetIncomingShip(true, this);
+	pTargetNode->CommandsComponent->RegisterCommand(this);
+	pTargetNode->CommandsComponent->AddCommandFlags(CommandFlags);
 }
 
 /******************************************************************************
  * When we unregister, tell our target planet no ship is coming anymore!
 ******************************************************************************/
-void UDMCommand_BuildShip::CommandUnregistered_Implementation() /* override */
+void UDMCommand_BuildShip::CommandUnqueued_Implementation() /* override */
 {
-	pTargetNode->SetIncomingShip(false, this);
+	pTargetNode->CommandsComponent->UnregisterCommand(this);
+	pTargetNode->CommandsComponent->RemoveCommandFlags(CommandFlags);
 }
 
 /******************************************************************************
@@ -113,7 +125,7 @@ FString UDMCommand_BuildShip::CommandDebug_Implementation() const /* override */
  * returns a string with the name of the command, what it does, and what it
  *		will operate on
 ******************************************************************************/
-UDMCommand* UDMCommand_BuildShip::CopyCommand(FCommandPacket& Packet) /* override */
+UDMCommand* UDMCommand_BuildShip::CopyCommand(const FCommandPacket& Packet) /* override */
 {
 	UDMCommand_BuildShip* pNewCommand = NewObject<UDMCommand_BuildShip>();
 	pNewCommand->GetCopyCommandData(Packet.Data);

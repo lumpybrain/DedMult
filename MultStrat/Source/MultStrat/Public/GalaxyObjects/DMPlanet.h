@@ -19,9 +19,6 @@ class MULTSTRAT_API ADMPlanet : public ADMGalaxyNode
 	GENERATED_BODY()
 	
 public:
-	
-	// Constructor
-	ADMPlanet(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 	// Replication
 	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -31,13 +28,6 @@ public:
 	UFUNCTION(BlueprintCallable, Reliable, Server)
 	void K2_SpawnShip(TSubclassOf<ADMShip> ShipType, EDMPlayerTeam Team);
 	void K2_SpawnShip_Implementation(TSubclassOf<ADMShip> ShipType, EDMPlayerTeam Team);
-
-	//~=============================================================================
-	// Properties and Accessors
-
-	/** Team that owns the ship and can issue it commands */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<class UDMTeamComponent> TeamComponent;
 
 protected:
 

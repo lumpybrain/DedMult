@@ -3,7 +3,6 @@
 
 #include "Player/DMShip.h"
 
-#include "Components/DMTeamComponent.h"				// UDMTeamComponent
 #include "Components/DMNodeConnectionComponent.h"	// UDMNodeConnectionComponent
 #include "GalaxyObjects/DMGalaxyNode.h"				// ADMGalaxyNode
 #include "Net/UnrealNetwork.h"						// DOREPLIFETIME
@@ -15,8 +14,6 @@
 ADMShip::ADMShip(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	bReplicates = true;
-
-	TeamComponent = CreateDefaultSubobject<UDMTeamComponent>(TEXT("Team Component"));
 }
 
 /******************************************************************************

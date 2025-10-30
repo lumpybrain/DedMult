@@ -35,6 +35,7 @@ class MULTSTRAT_API UDMCommand_BlueprintLibrary : public UBlueprintFunctionLibra
 
 	UFUNCTION(BlueprintCallable, meta = (ToolTip = "Checks if the BuildShip command is possible with the passed in objects."))
 	static bool TrialCommand_BuildShip(const ADMPlayerState* RequestingPlayer, const ADMGalaxyNode* PlanetToBuildOn, FString& OutFailString);
+
 	UFUNCTION(BlueprintCallable)
 	static UDMCommand_BuildShip* MakeCommand_BuildShip(ADMPlayerState* RequestingPlayer, ADMGalaxyNode* PlanetToBuild);
 
@@ -43,6 +44,7 @@ class MULTSTRAT_API UDMCommand_BlueprintLibrary : public UBlueprintFunctionLibra
 
 	UFUNCTION(BlueprintCallable, meta = (ToolTip = "Checks if the MoveShip command is possible with the passed in objects."))
 	static bool TrialCommand_MoveShip(const ADMPlayerState* RequestingPlayer, const ADMShip* Ship, const ADMGalaxyNode* NodeToMoveTo, FString& OutFailString);
+
 	UFUNCTION(BlueprintCallable)
 	static UDMCommand_MoveShip* MakeCommand_MoveShip(ADMPlayerState* RequestingPlayer, ADMShip* Ship, ADMGalaxyNode* PlanetToBuild);
 	

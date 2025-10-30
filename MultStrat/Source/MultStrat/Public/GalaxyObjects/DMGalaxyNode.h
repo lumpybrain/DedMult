@@ -3,13 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Engine/StaticMeshActor.h"
+#include "GalaxyObjects/DMBaseGalaxyObject.h"
 #include "DMGalaxyNode.generated.h"
 
 class ADMGalaxyNode;
 class ADMShip;
 class UDMCommand;
 class UDMNodeConnectionComponent;
+enum class EDMPlayerTeam : uint8;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogGalaxy, Log, All);
 
@@ -17,7 +18,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogGalaxy, Log, All);
  * Galaxy Nodes make up the map of all ndoes players can interact with
  */
 UCLASS()
-class MULTSTRAT_API ADMGalaxyNode : public AStaticMeshActor
+class MULTSTRAT_API ADMGalaxyNode : public ADMBaseGalaxyObject
 {
 	GENERATED_BODY()
 	
@@ -31,14 +32,14 @@ public:
 	//~=============================================================================
 	// Command Functions
 
+	/** 
+	 * Check all pending ships and see if the math works out where no matter what happens
+	 * in other combats, this node can safely resolve 
+	 */
+	bool CanResolveTurn();
+
 	/** Resolve all pending ships after all the commands have executed for a turn */
 	void ResolveTurn();
-
-	/**
-	 * Used by a team to register a ship is incoming
-	 * Only matters to the local player, so they can't do multiple commands to send a ship to one node
-	 */
-	bool SetIncomingShip(bool Incoming, const UDMCommand* OwningCommand);
 
 	/** 
 	 * Used to remove the current ship
@@ -49,8 +50,23 @@ public:
 	 */
 	virtual void RemoveShip(const UDMCommand* OwningCommand = nullptr);
 
-	/** Used by commands to register a ship trying to move to this planet for turn */
+	/**
+	 * Used by commands to register a ship trying to move to this planet for turn 
+	 * returns true if ship successfully registers, false otherwise
+	 */
 	bool AddPendingShip(ADMShip* NewShip, bool IsSupportingTeam, const UDMCommand* OwningCommand);
+
+	/** 
+	 * Can be called when ships are bounced, or their movement is invalidated in some other way
+	 * returns true if the ship existed in the pending ship queue, false otherwise
+	 */
+	bool RemovePendingShip(ADMShip* NewShip);
+
+	/**
+	 * Checks with the connection component to see if the ship can traverse to the requested node
+	 * returns true if successful, false otherwise
+	 */
+	bool ReserveTraversalTo(ADMGalaxyNode* TargetNode, ADMShip* ReservingShip);
 
 	//~=============================================================================
 	// Properties and Accessors
@@ -61,16 +77,8 @@ public:
 	UFUNCTION(BlueprintCallable)
 	ADMShip* GetShip() const										{ return CurrentShip; }
 
-	/**
-	 * Seperate out blueprint and C++ versions just because blueprints dont let us do pointers,
-	 * and debug output is optional. C++ can just call whichever function it wants.
-	 */
-	UFUNCTION(BlueprintCallable)
-	bool K2_HasIncomingShip(FString& OutOwningCommandDebug) const;
-	bool HasIncomingShip() const									{ return IncomingShip; }
-
 	UFUNCTION(BlueprintCallable, BlueprintPure)
-	UDMNodeConnectionComponent* GetConnectionManager() const;
+	UDMNodeConnectionComponent* GetConnectionManager() const		{ return ConnectionManagerComponent; }
 	
 protected:
 
@@ -79,6 +87,9 @@ protected:
 	 * Physically move it and claim it.
 	 */
 	virtual void SetCurrentShip(ADMShip* NewShip);
+
+	/** Calculate the power of all factions attack this node */
+	virtual void GetPendingPowers(TMap<EDMPlayerTeam, TPair<ADMShip*, size_t>>& Powers);
 
 	/** 
 	 * Current ship docked at this node
@@ -92,20 +103,9 @@ protected:
 
 	/** Compartmentalized management of connected nodes */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	TObjectPtr<class UDMNodeConnectionComponent> ConnectionManagerComponent;
+	TObjectPtr<UDMNodeConnectionComponent> ConnectionManagerComponent;
 
 	/** Ships trying to move to this node this turn */
-	TSet<TPair<TObjectPtr<ADMShip>, bool>> PendingShips;
-
-	/**
-	 * A ship wants to come to this node (i.e, build or move command is in the queue)
-	 * Only one allowed so that a client can't illegally try to move 2 ships to one node
-	 * 
-	 * DMTODO: This is a bool related to a specific command. Should this be some
-	 * kind of bitfield, as commands get more complicated, they just use the spot
-	 * in the bitfield that other commands they're entangled to should be using?
-	 * i.e, right now this only relates to Build and Move commands
-	 */
-	bool IncomingShip = false;
-	TObjectPtr<const UDMCommand> IncomingShipCommand = nullptr;
+	UPROPERTY()
+	TMap<TObjectPtr<ADMShip>, bool> PendingShips;
 };

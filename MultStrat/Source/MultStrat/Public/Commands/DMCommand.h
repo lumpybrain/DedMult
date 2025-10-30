@@ -8,6 +8,7 @@
 
 class ADMGalaxyNode;
 class ADMPlayerState;
+enum class ECommandFlags : uint8;
 
 /**
  * Class to be filled for command initialization
@@ -66,19 +67,15 @@ public:
 	bool RunCommand() const;
 	virtual bool RunCommand_Implementation() const;
 
-	/** Called when a command is registed with the Command Queue Subsystem */
+	/** Called when a command is queued in our local player state */
 	UFUNCTION(BlueprintNativeEvent)
-	void CommandRegistered();
-	virtual void CommandRegistered_Implementation() {}
+	void CommandQueued();
+	virtual void CommandQueued_Implementation() {}
 
-	/** Called when a command is unregisted with the Command Queue Subsystem or after it runs */
+	/** Called when a command is unqueued in our local player state or after it runs */
 	UFUNCTION(BlueprintNativeEvent)
-	void CommandUnregistered();
-	virtual void CommandUnregistered_Implementation() {}
-
-	UFUNCTION(BlueprintCallable, meta = (ToolTip = "Get this Command's ID. IDs can be used to cancel commands. If 0, this command was never registered and is considered Invalid."))
-	int GetID() { return static_cast<int>(CommandID); }
-	void SetID(uint16 NewID);
+	void CommandUnqueued();
+	virtual void CommandUnqueued_Implementation() {}
 
 	//~=============================================================================
 	// Command Management Functions
@@ -102,7 +99,7 @@ public:
 	/** returns a string with the name of the command, what it does, and what it will operate on */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
 	FString CommandDebug() const;
-	virtual FString CommandDebug_Implementation() const	{ return FString::Printf(TEXT("No Debug for class %s"), *GetClass()->GetFName().ToString()); }
+	virtual FString CommandDebug_Implementation() const		{ return FString::Printf(TEXT("No Debug for class %s"), *GetClass()->GetFName().ToString()); }
 
 	/**
 	 * Create a new UObject of this command's class type and copy the data from command data into it
@@ -110,7 +107,7 @@ public:
 	 *		don't have to wait for unreal's automatic replication to copy the data over for us;
 	 *		not all clients need a copy of the command, just the server.
 	 */
-	virtual UDMCommand* CopyCommand(struct FCommandPacket& Packet);
+	virtual UDMCommand* CopyCommand(const struct FCommandPacket& Packet);
 
 	/**
 	 * Fill data for future use of CopyCommand calls
@@ -121,13 +118,22 @@ public:
 	// Properties and Accessors
 
 	UFUNCTION(BlueprintCallable)
-	const ADMPlayerState* GetOwningPlayer() { return pOwningPlayer; }
+	const ADMPlayerState* GetOwningPlayer() const			{ return pOwningPlayer; }
+
+	UFUNCTION(BlueprintCallable)
+	ECommandFlags GetCommandFlags() const					{ return CommandFlags;}
 
 	/** higher priority commands run first.Set when registered to the command queue */
 	uint8 Priority = 0;
 
 protected:
-	virtual void GetCopyCommandData(TArray<TObjectPtr<UObject>>& CommandData);
+	virtual void GetCopyCommandData(const TArray<TObjectPtr<UObject>>& CommandData);
+
+	/** 
+	 * Commands can set these flags on target objects/homebased objects when registered
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	ECommandFlags CommandFlags;
 
 	/** Player that owns the command; mostly used to determine team */
 	UPROPERTY(BlueprintReadOnly, meta = (DisplayName = "Owning Player"))
@@ -136,10 +142,6 @@ protected:
 	/** Galaxy node the command wants to interact with(i.e, spawning on a node, moving to a node) */
 	UPROPERTY(BlueprintReadOnly, meta = (DisplayName = "Target Node"))
 	TObjectPtr<ADMGalaxyNode> pTargetNode;
-
-private:
-	/** ID managed by command queue subsystem */
-	uint16 CommandID = 0;
 };
 
 USTRUCT()

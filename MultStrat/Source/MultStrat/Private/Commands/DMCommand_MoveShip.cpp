@@ -5,10 +5,20 @@
 
 #include "Commands/DMCommand.h"					// FCommandPacket
 #include "Commands/DMCommandQueueSubsystem.h"	// LogCommands
-#include "Components/DMTeamComponent.h"			// DMTeamComponent
+#include "Components/DMCommandFlagsComponent.h"	// UDMActiveCommandsComponent
+#include "Components/DMTeamComponent.h"			// UDMTeamComponent
 #include "GalaxyObjects/DMGalaxyNode.h"			// ADMGalaxyNode
 #include "Player/DMPlayerState.h"				// ADMPlayerState
 #include "Player/DMShip.h"						// ADMShip
+
+/******************************************************************************
+ * Constructor: Set command flag
+******************************************************************************/
+UDMCommand_MoveShip::UDMCommand_MoveShip(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	CommandFlags = ECommandFlags::MovingShip;
+}
 
 /*/////////////////////////////////////////////////////////////////////////////
 *	UDMCommand Interface //////////////////////////////////////////////////////
@@ -20,16 +30,22 @@
 ******************************************************************************/
 bool UDMCommand_MoveShip::RunCommand_Implementation() const /* override */
 {
+	// DMTODO: Hey, what happens if two ships are trying to move from planet A to B, and from B to A?
 	if (!IsValid(pTargetNode) || !IsValid(pShip))
 	{
 		return false;
 	}
 
-	// remove it from its current node
-	if (ADMGalaxyNode* pParent = Cast<ADMGalaxyNode>(pShip->GetCurrentNode()))
+	if (ADMGalaxyNode* pCurrentNode = pShip->GetCurrentNode())
 	{
-		pParent->RemoveShip(this);
+		if (!pCurrentNode->ReserveTraversalTo(pTargetNode, pShip))
+		{
+			return false;
+		}
 	}
+
+
+	pShip->CommandsComponent->AddCommandFlags(ECommandFlags::MovingShip);
 
 	pTargetNode->AddPendingShip(pShip, false, this);
 
@@ -39,17 +55,27 @@ bool UDMCommand_MoveShip::RunCommand_Implementation() const /* override */
 /******************************************************************************
  * When we register, tell our target planet that a ship is incoming!
 ******************************************************************************/
-void UDMCommand_MoveShip::CommandRegistered_Implementation() /* override */
+void UDMCommand_MoveShip::CommandQueued_Implementation() /* override */
 {
-	pTargetNode->SetIncomingShip(true, this);
+	check(pTargetNode)
+	// tell the target we're coming, and tell the node we're on we're moving
+	pOriginalNode = pShip->GetCurrentNode();
+	pTargetNode->CommandsComponent->AddCommandFlags(CommandFlags);
+	pOriginalNode->CommandsComponent->RegisterCommand(this);
 }
 
 /******************************************************************************
  * When we unregister, tell our target planet no ship is coming anymore!
 ******************************************************************************/
-void UDMCommand_MoveShip::CommandUnregistered_Implementation() /* override */
+void UDMCommand_MoveShip::CommandUnqueued_Implementation() /* override */
 {
-	pTargetNode->SetIncomingShip(false, this);
+	check(pOriginalNode)
+	check(pTargetNode)
+	// tell the target we're no longer coming, and tell the node we were on
+	// that we're done moving
+	pTargetNode->CommandsComponent->RemoveCommandFlags(CommandFlags);
+	pOriginalNode->CommandsComponent->UnregisterCommand(this);
+	pOriginalNode = nullptr;
 }
 
 /******************************************************************************
@@ -105,7 +131,7 @@ FString UDMCommand_MoveShip::CommandDebug_Implementation() const /* override */
 /******************************************************************************
  * create a new moveship command object based on input data
 ******************************************************************************/
-UDMCommand* UDMCommand_MoveShip::CopyCommand(FCommandPacket& Packet) /* override */
+UDMCommand* UDMCommand_MoveShip::CopyCommand(const FCommandPacket& Packet) /* override */
 {
 	UDMCommand_MoveShip* pNewCommand = NewObject<UDMCommand_MoveShip>();
 	pNewCommand->GetCopyCommandData(Packet.Data);
@@ -123,7 +149,7 @@ void UDMCommand_MoveShip::FillCopyCommandData(TArray<TObjectPtr<UObject>>& Comma
 	CommandData.Add(pShip);
 }
 
-void UDMCommand_MoveShip::GetCopyCommandData(TArray<TObjectPtr<UObject>>& CommandData) /* override */
+void UDMCommand_MoveShip::GetCopyCommandData(const TArray<TObjectPtr<UObject>>& CommandData) /* override */
 {
 	// Copy
 	if (CommandData.Num() < 3)

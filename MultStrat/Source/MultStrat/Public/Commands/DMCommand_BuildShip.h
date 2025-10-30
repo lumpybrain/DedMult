@@ -18,6 +18,9 @@ class MULTSTRAT_API UDMCommand_BuildShip : public UDMCommand
 	GENERATED_BODY()
 
 public:
+	/** Constructor: set command flag */
+	UDMCommand_BuildShip(const FObjectInitializer& ObjectInitializer);
+
 	//~ Begin UDMCommand Interface
 
 	/**
@@ -27,10 +30,10 @@ public:
 	virtual bool RunCommand_Implementation() const override;
 
 	/** When we register, tell our target planet that a ship is incoming! */
-	virtual void CommandRegistered_Implementation() override;
+	virtual void CommandQueued_Implementation() override;
 
 	/** When we unregister, tell our target planet no ship is coming anymore! */
-	virtual void CommandUnregistered_Implementation() override;
+	virtual void CommandUnqueued_Implementation() override;
 	
 	/**
 	 * Make sure our planet still exists
@@ -44,7 +47,7 @@ public:
 	/**
 	 * Create a new UObject of this command's type
 	 */
-	virtual UDMCommand* CopyCommand(struct FCommandPacket& Packet) override;
+	virtual UDMCommand* CopyCommand(const struct FCommandPacket& Packet) override;
 
 	//~ End UDMCommand Interface
 
