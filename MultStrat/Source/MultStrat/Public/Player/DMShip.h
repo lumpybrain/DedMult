@@ -36,12 +36,19 @@ public:
 	bool IsNodeReachable(const ADMGalaxyNode* TargetNode) const;
 	virtual bool IsNodeReachable_Implementation(const ADMGalaxyNode* TargetNode) const;
 
+	/** 
+	 * Change's the ships owning player
+	 * Note; does not affect the team the ship is on 
+	 */
+	UFUNCTION(BlueprintCallable)
+	void SetOwningPlayer(ADMPlayerState* NewOwner);
+
+	/** Gettors */
 	UFUNCTION(BlueprintCallable)
 	ADMPlayerState* GetOwningPlayer()					{ return OwningPlayer; }
 	UFUNCTION(BlueprintCallable)
 	const ADMPlayerState* GetOwningPlayerConst() const	{ return OwningPlayer; }
-	void SetOwningPlayer(ADMPlayerState* NewOwner)		{ OwningPlayer = NewOwner; }
-
+	UFUNCTION(BlueprintCallable)
 	int GetShipPower() const							{ return ShipPower;}
 
 protected:

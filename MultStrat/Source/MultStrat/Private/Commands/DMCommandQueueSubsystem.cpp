@@ -61,8 +61,8 @@ void UDMCommandQueueSubsystem::ExecuteCommandsForTurn()
 		if (!IsValid(Command) || !Command->Validate())
 		{
 			UE_LOG(LogCommands, Warning, TEXT("Command %s tried to run but has been invalidated since its registration (%s)"), 
-				IsValid(Command) ? *Command->GetName() : *FString("NULLCLASS"),
-				IsValid(Command) ? *Command->CommandDebug() : *FString("NULLCLASS"))
+				IsValid(Command) ? *Command->GetName() : TEXT("NULLCLASS"),
+				IsValid(Command) ? *Command->CommandDebug() : TEXT("NULLCLASS"))
 			continue;
 		}
 
@@ -92,16 +92,16 @@ void UDMCommandQueueSubsystem::ExecuteCommandsForTurn()
  * Registers a command with the subsystem.
  * Returns the command ID to be stored if a command is requested to be cancelled
 ******************************************************************************/
-bool UDMCommandQueueSubsystem::RegisterCommand(UDMCommand* Command)
+bool UDMCommandQueueSubsystem::SubsystemRegisterCommand(UDMCommand* Command)
 {
 	if (!IsValid(Command))
 	{
-		UE_LOG(LogCommands, Warning, TEXT("UDMCommandQueueSubsystem::RegisterCommand: Null Command Requested!"))
+		UE_LOG(LogCommands, Warning, TEXT("UDMCommandQueueSubsystem::SubsystemRegisterCommand: Null Command Requested!"))
 		return false;
 	}
 	if (!Command->Validate())
 	{
-		UE_LOG(LogCommands, Warning, TEXT("UDMCommandQueueSubsystem::RegisterCommand: Command Invalid! (Was it initialized properly?)"))
+		UE_LOG(LogCommands, Warning, TEXT("UDMCommandQueueSubsystem::SubsystemRegisterCommand: Command Invalid! (Was it initialized properly?)"))
 		return false;
 	}
 

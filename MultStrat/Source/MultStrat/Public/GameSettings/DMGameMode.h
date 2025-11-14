@@ -34,16 +34,24 @@ class MULTSTRAT_API UCommandsDataAsset : public UDataAsset
 	GENERATED_BODY()
 public:
 
-	// Higher priority # commands will execute first when a turn executes
-	UPROPERTY(EditDefaultsOnly)
+	/** Higher priority # commands will execute first when a turn executes */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	TMap<TSubclassOf<UDMCommand>, uint8> CommandPriorities;
 
-	// Default class used when spawning a ship on a planet
-	UPROPERTY(EditDefaultsOnly)
+	/** Default class used when spawning a ship on a planet */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ship Spawning")
 	TSubclassOf<ADMShip> DefaultShip;
 
-	// Ships spawned on planets or nodes will start with this vertical offset.
-	UPROPERTY(EditDefaultsOnly)
+	/** Starting power level for all new commanders */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ship Spawning")
+	int StartingMaxPower = 8;
+
+	/** Maximum power level commanders can upgrade to */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ship Spawning")
+	int MaxShipPowerCap = 20;
+
+	/** Ships spawned on planets or nodes will start with this vertical offset. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ship Spawning")
 	float ShipSpawnZOffset = 50.0f;
 };
 
@@ -90,9 +98,6 @@ public:
 	/** Check the command data asset for the default ship class */
 	TSubclassOf<ADMShip> GetDefaultShip() const;
 
-	/** Get the class connectors will be using to draw splines between planets */
-	TSubclassOf<AActor> GetConnectorClass() const	{ return ConnectorSplineClass; }
-
 	/** Check the Command data asset for the default ship spawn Z offset */
 	float GetShipSpawnZOffset() const;
 
@@ -101,9 +106,6 @@ private:
 	/** Max # of players allowed in this game mode */
 	UPROPERTY(EditDefaultsOnly, Category="DedMult Defaults")
 	uint8 MaxNumPlayers = 8;
-	/** Default values for team-related data (i.e colors) */
-	UPROPERTY(EditDefaultsOnly, Category = "DedMult Defaults")
-	TSubclassOf<AActor> ConnectorSplineClass;
 
 	/** Default values for team-related data (i.e colors) */
 	UPROPERTY(EditDefaultsOnly, Category = "DedMult Defaults")

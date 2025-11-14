@@ -15,7 +15,7 @@
  * Command executes on its target; presumed to be only be run by CommandQueueSubsystem
  * returns true if command executes successfully
 ******************************************************************************/
-bool UDMCommand::RunCommand_Implementation() const
+bool UDMCommand::RunCommand_Implementation()
 { 
 	UE_LOG(LogCommands, Warning, TEXT("Class %s Tried to run despite not having a written Run Command! Curse you, Unreal Abstract Classes!"), *GetClass()->GetFName().ToString())
 	return false;

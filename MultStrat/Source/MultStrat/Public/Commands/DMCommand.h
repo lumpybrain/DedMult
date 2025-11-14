@@ -64,8 +64,8 @@ public:
 	 * returns true if command executes successfully
 	 */
 	UFUNCTION(BlueprintNativeEvent)
-	bool RunCommand() const;
-	virtual bool RunCommand_Implementation() const;
+	bool RunCommand();
+	virtual bool RunCommand_Implementation();
 
 	/** Called when a command is queued in our local player state */
 	UFUNCTION(BlueprintNativeEvent)
@@ -118,7 +118,10 @@ public:
 	// Properties and Accessors
 
 	UFUNCTION(BlueprintCallable)
-	const ADMPlayerState* GetOwningPlayer() const			{ return pOwningPlayer; }
+	const ADMPlayerState* GetConstOwningPlayer() const		{ return pOwningPlayer; }
+	ADMPlayerState* GetOwningPlayer()						{ return pOwningPlayer; }
+
+	ADMGalaxyNode* GetTargetNode() 							{ return pTargetNode; }
 
 	UFUNCTION(BlueprintCallable)
 	ECommandFlags GetCommandFlags() const					{ return CommandFlags;}

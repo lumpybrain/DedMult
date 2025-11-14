@@ -15,7 +15,7 @@ class ADMShip;
  *		to build this class
  */
 UCLASS()
-class MULTSTRAT_API UDMCommandInitMoveShip : public UDMCommandInit
+class MULTSTRAT_API UDMCommandInit_MoveShip : public UDMCommandInit
 {
 	GENERATED_BODY()
 
@@ -41,7 +41,7 @@ public:
 	//~ Begin UDMCommand Interface
 
 	/** Move our target ship */
-	virtual bool RunCommand_Implementation() const override;
+	virtual bool RunCommand_Implementation() override;
 
 	/** When we register, tell our target planet that a ship is incoming! */
 	virtual void CommandQueued_Implementation() override;
@@ -50,7 +50,7 @@ public:
 	virtual void CommandUnqueued_Implementation() override;
 
 	/**
-	 * Initialize variables.InitVariables must be of class UDMCommandInitMoveShip.
+	 * Initialize variables.InitVariables must be of class UDMCommandInit_MoveShip.
 	 * returns whether init was successful.Init can be unsuccessful if
 	 * the input is not properly initialized(i.e passing in nullptrs)
 	 */

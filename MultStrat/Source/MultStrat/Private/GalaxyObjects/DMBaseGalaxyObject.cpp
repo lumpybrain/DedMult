@@ -15,4 +15,6 @@ ADMBaseGalaxyObject::ADMBaseGalaxyObject(const FObjectInitializer& ObjectInitial
 {
 	TeamComponent = CreateDefaultSubobject<UDMTeamComponent>(TEXT("Team Component"));
 	CommandsComponent = CreateDefaultSubobject<UDMActiveCommandsComponent>(TEXT("Active Commands Component"));
+
+	NetDormancy = ENetDormancy::DORM_DormantAll;
 }

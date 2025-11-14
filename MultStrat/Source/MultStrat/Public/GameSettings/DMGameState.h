@@ -8,6 +8,7 @@
 
 class ADMPlayerState;
 class UDMCommand;
+class UCommandsDataAsset;
 class UTeamDataAsset;
 enum class EDMPlayerTeam : uint8;
 
@@ -27,7 +28,7 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	/** Static Gettor */
-	static ADMGameState* Get(UObject* WorldContextObject);
+	static ADMGameState* Get(const UObject* WorldContextObject);
 
 	//~=============================================================================
 	// Active Player Management
@@ -45,6 +46,9 @@ public:
 	UFUNCTION(Reliable, Server)
 	void CheckAllPlayersTurnsSubmitted();
 	virtual void CheckAllPlayersTurnsSubmitted_Implementation();
+
+	/** Called by PlanetProcessing Subsystem when logic processing for the turn is finished */
+	void TurnProcessingFinished();
 
 	/** Gettor to know if the system is actively processing a turn */
 	UFUNCTION(BlueprintCallable)
@@ -69,8 +73,12 @@ public:
 	ADMPlayerState* GetPlayerForTeam(EDMPlayerTeam Team);
 
 	/** Pointer to team data asset, initialized from ADMGameMode on startup */
-	UPROPERTY(Transient, Replicated)
-	TObjectPtr<UTeamDataAsset> CurrentTeamData;
+	UPROPERTY(Transient, Replicated, BlueprintReadOnly)
+	TObjectPtr<UTeamDataAsset> TeamData;
+
+	/** Pointer to team data asset, initialized from ADMGameMode on startup */
+	UPROPERTY(Transient, Replicated, BlueprintReadOnly)
+	TObjectPtr<UCommandsDataAsset> CommandsData;
 
 	/** When a player joins, they will be given this team */
 	UPROPERTY(Replicated)

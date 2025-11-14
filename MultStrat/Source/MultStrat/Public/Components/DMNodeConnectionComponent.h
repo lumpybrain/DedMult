@@ -21,16 +21,8 @@ class MULTSTRAT_API ADMConnector : public ASplineMeshActor
 	GENERATED_BODY()
 	
 public:
-	UFUNCTION(BlueprintImplementableEvent, meta = (ForceAsFunction))
+	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, meta = (ForceAsFunction))
 	void InitializeSplineMesh(const ADMGalaxyNode* StartingNode, const ADMGalaxyNode* EndingNode);
-
-	void SetTraversingShip(ADMShip* NewShip)	{ TraversingShip = NewShip; }
-	ADMShip* GetTraversingShip()				{ return TraversingShip; }
-
-protected:
-	/** Used while commands are running to check for "bounce" situations where 2 ships use the same connector */
-	UPROPERTY()
-	TObjectPtr<ADMShip> TraversingShip;
 };
 
 /**
@@ -54,13 +46,6 @@ public:
 	virtual void BeginPlay() override;
 
 	//~ End UActorComponent Interface
-
-	/**
-	 * Reserve a connector from this planet to another planet
-	 * Returns true if the spot is reserved; returns false if the connector is in use, or if the connection DNE
-	 * If this function is called while another ship has reserved the conector, we will "bounce" that ship's movement
-	 */
-	bool ReserveShipTraversal(ADMGalaxyNode* TargetNode, ADMShip* ReservingShip);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated)
 	TArray<const ADMGalaxyNode*> ConnectedNodes;

@@ -6,10 +6,13 @@
 #include "GalaxyObjects/DMGalaxyNode.h"			// ADMGalaxyNode
 #include "GalaxyObjects/DMPlanet.h"				// ADMPlanet
 #include "Commands/DMCommand.h"					// UDMCommandInit
-#include "Commands/DMCommand_MoveShip.h"		// UDMCommand_MoveShip, UDMCommandInitMoveShip
-#include "Commands/DMCommand_BuildShip.h"		// UDMCommand_BuildShip
+#include "Commands/DMCommand_BuildShip.h"		// UDMCommand_BuildShip, UDMCommandInit_BuildShip
+#include "Commands/DMCommand_MoveShip.h"		// UDMCommand_MoveShip, UDMCommandInit_MoveShip
+#include "Commands/DMCommand_Support.h"			// UDMCommand_Support
 #include "Commands/DMCommandQueueSubsystem.h"	// LogCommands
 #include "Components/DMTeamComponent.h"			// UDMTeamComponent
+#include "GameSettings/DMGameMode.h"			// UCommandsDataAsset
+#include "GameSettings/DMGameState.h"			// ADMGameState
 #include "Player/DMPlayerState.h"				// ADMPlayerState
 #include "Player/DMShip.h"						// ADMShip
 
@@ -27,12 +30,22 @@ UDMCommandInit* UDMCommand_BlueprintLibrary::MakeCommandInit(ADMPlayerState* pRe
 	return NewInit;
 }
 
-UDMCommandInitMoveShip* UDMCommand_BlueprintLibrary::MakeCommandInit_MoveShip(ADMPlayerState* pRequestingPlayer, ADMGalaxyNode* pTarget, ADMShip* pShip)
+UDMCommandInit_MoveShip* UDMCommand_BlueprintLibrary::MakeCommandInit_MoveShip(ADMPlayerState* pRequestingPlayer, ADMGalaxyNode* pTarget, ADMShip* pShip)
 {
-	UDMCommandInitMoveShip* NewInit = NewObject<UDMCommandInitMoveShip>();
+	UDMCommandInit_MoveShip* NewInit = NewObject<UDMCommandInit_MoveShip>();
 	NewInit->pRequestingPlayer = pRequestingPlayer;
 	NewInit->pTarget = pTarget;
 	NewInit->pShip = pShip;
+
+	return NewInit;
+}
+
+UDMCommandInit_BuildShip* UDMCommand_BlueprintLibrary::MakeCommandInit_BuildShip(ADMPlayerState* pRequestingPlayer, ADMGalaxyNode* pTarget, TSubclassOf<ADMShip> ShipOverrideType)
+{
+	UDMCommandInit_BuildShip* NewInit = NewObject<UDMCommandInit_BuildShip>();
+	NewInit->pRequestingPlayer = pRequestingPlayer;
+	NewInit->pTarget = pTarget;
+	NewInit->ShipClass = ShipOverrideType;
 
 	return NewInit;
 }
@@ -46,7 +59,7 @@ UDMCommandInitMoveShip* UDMCommand_BlueprintLibrary::MakeCommandInit_MoveShip(AD
  * true if a build ship command is possible, false otherwise
  * OutFailString is filled with a debug reason for failure
 ******************************************************************************/
-bool UDMCommand_BlueprintLibrary::TrialCommand_BuildShip(const ADMPlayerState* pRequestingPlayer, const ADMGalaxyNode* pPlanetToBuildOn, FString& OutFailString)
+bool UDMCommand_BlueprintLibrary::TrialCommand_BuildShip(const ADMPlayerState* pRequestingPlayer, const ADMGalaxyNode* pPlanetToBuildOn, TSubclassOf<ADMShip> ShipToBuild, FString& OutFailString)
 {
 	// Player must be valid
 	if (!IsValid(pRequestingPlayer))
@@ -74,6 +87,32 @@ bool UDMCommand_BlueprintLibrary::TrialCommand_BuildShip(const ADMPlayerState* p
 				*pPlanetToBuildOn->GetName());
 		return false;
 	}
+	// Player must have room to build the ship
+	int MaxPlayerPower = pRequestingPlayer->GetMaxShipPower();
+	int CurrentPlayerPower = pRequestingPlayer->GetTotalShipPower();
+	if (ShipToBuild == nullptr)
+	{
+		ADMGameState* pState = ADMGameState::Get(pRequestingPlayer);
+		check(pState);
+		ShipToBuild = pState->CommandsData->DefaultShip;
+		if (ShipToBuild == nullptr)
+		{
+			OutFailString = TEXT("Couldn't get default ship type?");
+			return false;
+		}
+	}
+	UObject* ShipDefaultObject = ShipToBuild->GetDefaultObject();
+	int PendingShipPower = Cast<ADMShip>(ShipDefaultObject)->GetShipPower();
+	if (MaxPlayerPower < CurrentPlayerPower + PendingShipPower)
+	{
+		OutFailString = FString::Printf(TEXT("Player %s wants to build a ship %s, but doesn't have enough power! (Current: %d. Max: %d. Ship's power: %d)"),
+			*pRequestingPlayer->GetName(),
+			*ShipToBuild->GetFName().ToString(),
+			CurrentPlayerPower,
+			MaxPlayerPower,
+			PendingShipPower);
+		return false;
+	}
 
 	return true;
 }
@@ -82,11 +121,11 @@ bool UDMCommand_BlueprintLibrary::TrialCommand_BuildShip(const ADMPlayerState* p
  * Build the BuildShip command
  * returns the constructed command, or a nullptr if an error occurred
 ******************************************************************************/
-UDMCommand_BuildShip* UDMCommand_BlueprintLibrary::MakeCommand_BuildShip(ADMPlayerState* pRequestingPlayer, ADMGalaxyNode* pPlanetToBuildOn)
+UDMCommand_BuildShip* UDMCommand_BlueprintLibrary::MakeCommand_BuildShip(ADMPlayerState* pRequestingPlayer, ADMGalaxyNode* pPlanetToBuildOn, TSubclassOf<ADMShip> ShipToBuild)
 {
 	// Can we?
 	FString FailureOutput;
-	if (!TrialCommand_BuildShip(pRequestingPlayer, pPlanetToBuildOn, FailureOutput))
+	if (!TrialCommand_BuildShip(pRequestingPlayer, pPlanetToBuildOn, ShipToBuild, FailureOutput))
 	{
 		UE_LOG(LogCommands, Warning, TEXT("UDMCommand_BlueprintLibrary::MakeCommand_BuildShip: %s"), *FailureOutput)
 		return nullptr;
@@ -94,7 +133,11 @@ UDMCommand_BuildShip* UDMCommand_BlueprintLibrary::MakeCommand_BuildShip(ADMPlay
 
 	// Build it
 	UDMCommand_BuildShip* NewBuildCommand = NewObject<UDMCommand_BuildShip>();
-	NewBuildCommand->InitializeCommand(MakeCommandInit(pRequestingPlayer, pPlanetToBuildOn));
+	if (!NewBuildCommand->InitializeCommand(MakeCommandInit_BuildShip(pRequestingPlayer, pPlanetToBuildOn, ShipToBuild)))
+	{
+		UE_LOG(LogCommands, Warning, TEXT("UDMCommand_BlueprintLibrary::MakeCommand_BuildShip: Initialization Failed"))
+		return nullptr;
+	}
 
 	return NewBuildCommand;
 }
@@ -162,6 +205,48 @@ UDMCommand_MoveShip* UDMCommand_BlueprintLibrary::MakeCommand_MoveShip(ADMPlayer
 
 	// Build it
 	UDMCommand_MoveShip* NewMoveCommand = NewObject<UDMCommand_MoveShip>();
-	NewMoveCommand->InitializeCommand(MakeCommandInit_MoveShip(pRequestingPlayer, pNodeToMoveTo, pShip));
+	if (!NewMoveCommand->InitializeCommand(MakeCommandInit_MoveShip(pRequestingPlayer, pNodeToMoveTo, pShip)))
+	{
+		UE_LOG(LogCommands, Warning, TEXT("UDMCommand_BlueprintLibrary::MakeCommand_MoveShip: Initialization Failed"))
+			return nullptr;
+	}
 	return NewMoveCommand;
+}
+
+/*/////////////////////////////////////////////////////////////////////////////
+*	Support Command ///////////////////////////////////////////////////////////
+*//////////////////////////////////////////////////////////////////////////////
+
+/******************************************************************************
+ * Checks if the Support command is possible with the passed in objects.
+ * True if the command is possible, false otherwise
+ * OutFailString is filled with a debug reason for failure
+******************************************************************************/
+bool UDMCommand_BlueprintLibrary::TrialCommand_Support(const ADMPlayerState* pRequestingPlayer, const ADMShip* pShip, const ADMGalaxyNode* pNodeToSupport, FString& OutFailString)
+{
+	return TrialCommand_MoveShip(pRequestingPlayer, pShip, pNodeToSupport, OutFailString);
+}
+
+/******************************************************************************
+ * Build the MoveShip command
+ * returns the constructed command, or a nullptr if an error occurred
+******************************************************************************/
+UDMCommand_MoveShip* UDMCommand_BlueprintLibrary::MakeCommand_Support(ADMPlayerState* pRequestingPlayer, ADMShip* pShip, ADMGalaxyNode* pNodeToSupport)
+{
+	// Can we?
+	FString FailureOutput;
+	if (!TrialCommand_Support(pRequestingPlayer, pShip, pNodeToSupport, FailureOutput))
+	{
+		UE_LOG(LogCommands, Warning, TEXT("UDMCommand_BlueprintLibrary::MakeCommand_MoveShip: %s"), *FailureOutput)
+		return nullptr;
+	}
+
+	// Build it
+	UDMCommand_Support* NewSupportCommand = NewObject<UDMCommand_Support>();
+	if (!NewSupportCommand->InitializeCommand(MakeCommandInit_MoveShip(pRequestingPlayer, pNodeToSupport, pShip)))
+	{
+		UE_LOG(LogCommands, Warning, TEXT("UDMCommand_BlueprintLibrary::MakeCommand_Support: Initialization Failed"))
+		return nullptr;
+	}
+	return NewSupportCommand;
 }

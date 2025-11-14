@@ -8,6 +8,9 @@
 
 class UDMCommand;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCommandRegistered, const UDMCommand*, NewCommand);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCommandUnregistered, const UDMCommand*, OldCommand);
+
 
 // DMTODO: I should probably use Actor tags instead
 UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
@@ -32,12 +35,14 @@ public:
 	/** Constructor : don't tick! */
 	UDMActiveCommandsComponent();
 
-	/** 
-	 * Checks the TArray for a command active on this object and returns it.
-	 * returns nullptr if the command is not in use on the object
-	 */
-	UFUNCTION(BlueprintCallable)
-	UDMCommand* GetCommand(const UClass* CommandClass) const;
+	//~=============================================================================
+	// Command Registration and Unregistration
+
+	/** Events for blueprints to use when our active commmands have changed. */
+	UPROPERTY(BlueprintAssignable)
+	FCommandRegistered OnCommandRegistered;
+	UPROPERTY(BlueprintAssignable)
+	FCommandUnregistered OnCommandUnregistered;
 
 	/** 
 	 * Attempts to add the command to our array of active commands
@@ -57,10 +62,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool UnregisterCommand(const UDMCommand* Command);
 
-	/** Check for some active flag on this component */
-	UFUNCTION(BlueprintCallable)
-	bool CheckForCommandFlags(ECommandFlags Flag) const { return (ActiveFlags & Flag) != ECommandFlags::None; }
-
 	/** 
 	 * Add flags to the component.
 	 * returns true if that flag already existed on the component, false otherwise
@@ -74,6 +75,24 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable)
 	bool RemoveCommandFlags(const ECommandFlags Flag);
+
+	/** Called on the server to clear flags and commands used to process the turn */
+	// DMTODO Ufunction server
+	void Reset();
+
+	//~=============================================================================
+	// Gettors
+	/** 
+	 * Checks the TArray for a command active on this object and returns it.
+	 * Turning on include subclasses will also return the first found subclassed command
+	 * returns nullptr if the given command class/subclasses are not registered
+	 */
+	UFUNCTION(BlueprintCallable)
+	UDMCommand* GetCommand(const UClass* CommandClass, bool IncludeSubclasses = false);
+
+	/** Check for some active flag on this component */
+	UFUNCTION(BlueprintCallable)
+	bool CheckForCommandFlags(ECommandFlags Flag) const { return (ActiveFlags & Flag) != ECommandFlags::None; }
 
 protected:
 

@@ -9,7 +9,8 @@
 #include "Components/DMTeamComponent.h"			// UDMTeamComponent
 #include "GalaxyObjects/DMGalaxyNode.h"			// ADMGalaxyNode
 #include "GalaxyObjects/DMPlanet.h"				// ADMPlanet
-#include "GameSettings/DMGameMode.h"			// ADMGameMode
+#include "GameSettings/DMGameMode.h"			// UCommandsDataAsset
+#include "GameSettings/DMGameState.h"			// ADMGameState
 #include "Player/DMPlayerState.h"				// ADMPlayerState
 #include "Player/DMShip.h"						// ADMShip
 
@@ -30,20 +31,8 @@ UDMCommand_BuildShip::UDMCommand_BuildShip(const FObjectInitializer& ObjectIniti
  * Build the ship on the planet!
  * returns true if command executes successfully
 ******************************************************************************/
-bool UDMCommand_BuildShip::RunCommand_Implementation() const /* override */
+bool UDMCommand_BuildShip::RunCommand_Implementation() /* override */
 { 
-	// Get the gamemode 
-	// DMTODO: We have to be able to simulate on clients, who wont have access to this. Pointer to gamestate.
-	UWorld* NodeWorld = pTargetNode->GetWorld();
-	AGameModeBase* GameMode = NodeWorld->GetAuthGameMode();
-	ADMGameMode* DMGameMode = Cast<ADMGameMode>(GameMode);
-	if (!IsValid(DMGameMode))
-	{
-		UE_LOG(LogCommands, Error, TEXT("UDMCommand_BuildShip::RunCommand: Tried to build ship, but Gamemode inaccessible; did a client run RunCommand?"))
-		
-		return false;
-	}
-
 	// Validate planet
 	ADMPlanet* pTargetPlanet = Cast<ADMPlanet>(pTargetNode);
 	if(pTargetPlanet == nullptr)
@@ -62,7 +51,7 @@ bool UDMCommand_BuildShip::RunCommand_Implementation() const /* override */
 	}
 
 	// make the ship! note: pass in the owning players team instead of using the planet just in case we do some crazy abilities later
-	pTargetPlanet->K2_SpawnShip(DMGameMode->GetDefaultShip(), pOwningPlayer->TeamComponent->GetTeam());
+	pTargetPlanet->K2_SpawnShip(ShipSpawnClass, pOwningPlayer->TeamComponent->GetTeam());
 	return true;
 }
 
@@ -84,6 +73,43 @@ void UDMCommand_BuildShip::CommandUnqueued_Implementation() /* override */
 	pTargetNode->CommandsComponent->RemoveCommandFlags(CommandFlags);
 }
 
+bool UDMCommand_BuildShip::InitializeCommand_Implementation(UDMCommandInit* InitVariables) /* override */
+{
+	UDMCommandInit_BuildShip* InitBuild = Cast<UDMCommandInit_BuildShip>(InitVariables);
+	if (!IsValid(InitBuild))
+	{
+		return false;
+	}
+	
+	// ensure our base variables work first so we can use them to get the game state
+	if (!Super::InitializeCommand_Implementation(InitVariables))
+	{
+		return false;
+	}
+
+	if (InitBuild->ShipClass != nullptr)
+	{
+		ShipSpawnClass = InitBuild->ShipClass;
+	}
+	else
+	{
+		ADMGameState* pDMState = ADMGameState::Get(InitVariables->pRequestingPlayer);
+		check(pDMState);
+		if (pDMState->CommandsData == nullptr)
+		{
+			return false;
+		}
+		ShipSpawnClass = pDMState->CommandsData->DefaultShip;
+	}
+
+	if (ShipSpawnClass == nullptr)
+	{
+		return false;
+	}
+
+	return Super::InitializeCommand_Implementation(InitVariables);
+}
+
 /******************************************************************************
  * Make sure our planet still exists
  * returns true if command can be run successfully
@@ -92,6 +118,17 @@ bool UDMCommand_BuildShip::Validate_Implementation() const /* override */
 {
 	// our core variables better be valid
 	if (!Super::Validate_Implementation())
+	{
+		return false;
+	}
+	// do we have something to build? (were we initialized properly?)
+	if (ShipSpawnClass == nullptr)
+	{
+		return false;
+	}
+	// do we have space? (if anything is wrong here, crash loudly)
+	int PendingShipPower = pOwningPlayer->GetTotalShipPower() + Cast<ADMShip>(ShipSpawnClass->GetDefaultObject())->GetShipPower();
+	if (pOwningPlayer->GetMaxShipPower() < PendingShipPower)
 	{
 		return false;
 	}
@@ -131,4 +168,28 @@ UDMCommand* UDMCommand_BuildShip::CopyCommand(const FCommandPacket& Packet) /* o
 	pNewCommand->GetCopyCommandData(Packet.Data);
 
 	return pNewCommand;
+}
+
+/******************************************************************************
+ * These functions are used to fill and decode data during the CopyCommand function
+******************************************************************************/
+void UDMCommand_BuildShip::FillCopyCommandData(TArray<TObjectPtr<UObject>>& CommandData) /* override */
+{
+	Super::FillCopyCommandData(CommandData);
+
+	CommandData.Add(ShipSpawnClass);
+}
+
+void UDMCommand_BuildShip::GetCopyCommandData(const TArray<TObjectPtr<UObject>>& CommandData) /* override */
+{
+	// Copy
+	if (CommandData.Num() < 3)
+	{
+		UE_LOG(LogCommands, Error, TEXT("UDMCommand_BuildShip::GetCopyCommandData: Data not properly instantiated, no data will be copied"))
+			return;
+	}
+	ShipSpawnClass = Cast<UClass>(CommandData[2]);
+
+	// Copy parent data + call validate
+	Super::GetCopyCommandData(CommandData);
 }

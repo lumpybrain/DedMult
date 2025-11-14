@@ -51,7 +51,7 @@ public:
 	 * Returns the command ID to be stored if a command is requested to be cancelled
 	 */
 	UFUNCTION(BlueprintCallable, meta = (DevelopmentOnly, ToolTip = "Note: Requesting Commands only works on the server, because the CommmandQueueSubsystem only runs on the server!\nTry using your local player controller to request/cancel commands!"))
-	bool RegisterCommand(UDMCommand* Command);
+	bool SubsystemRegisterCommand(UDMCommand* Command);
 
 	/**
 	 * Unregisters a command with the subsystem.

@@ -14,30 +14,9 @@ UDMActiveCommandsComponent::UDMActiveCommandsComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-/******************************************************************************
- * Checks the TArray for a command active on this object and returns it.
- * returns nullptr if the command is not in use on the object
-******************************************************************************/
-UDMCommand* UDMActiveCommandsComponent::GetCommand(const UClass* pCommandClass) const
-{
-	if (pCommandClass == nullptr)
-	{
-		AActor* pOwner = GetOwner();
-		UE_LOG(LogCommands, Warning, TEXT("UDMActiveCommandsComponent::GetCommand: Null class passed in for object %s"),
-			IsValid(pOwner) ? *pOwner->GetName() : TEXT("INVALID OBJECT"))
-		return nullptr;
-	}
-
-	for (UDMCommand* pCurrCommand : ActiveCommands)
-	{
-		if (pCurrCommand->GetClass() == pCommandClass)
-		{
-			return pCurrCommand;
-		}
-	}
-
-	return nullptr;
-}
+/*/////////////////////////////////////////////////////////////////////////////
+*	Command Registration and Unregistration ///////////////////////////////////
+*//////////////////////////////////////////////////////////////////////////////
 
 /******************************************************************************
  * Attempts to add the command to our array of active commands
@@ -58,7 +37,7 @@ bool UDMActiveCommandsComponent::RegisterCommand(UDMCommand* pCommand)
 
 	// if the command is a duplicate (Or a subclass/parent class!), don't add it
 	const UClass* pAttemptedClass = pCommand->GetClass();
-	for (UDMCommand* pCurrCommand : ActiveCommands)
+	for (const UDMCommand* pCurrCommand : ActiveCommands)
 	{
 		UClass* pCurrClass = pCurrCommand->GetClass();
 		if (pCurrClass->IsChildOf(pAttemptedClass) ||
@@ -74,6 +53,7 @@ bool UDMActiveCommandsComponent::RegisterCommand(UDMCommand* pCommand)
 
 	// we cool
 	ActiveCommands.AddTail(pCommand);
+	OnCommandRegistered.Broadcast(pCommand);
 	return true;
 }
 
@@ -99,6 +79,7 @@ bool UDMActiveCommandsComponent::UnregisterCommand(const UDMCommand* pCommand)
 		if (pNode->GetValue() == pCommand)
 		{
 			ActiveCommands.RemoveNode(pNode);
+			OnCommandUnregistered.Broadcast(pCommand);
 			return true;
 		}
 
@@ -128,4 +109,46 @@ bool UDMActiveCommandsComponent::RemoveCommandFlags(const ECommandFlags Flag)
 	bool bFlagExisted = CheckForCommandFlags(Flag);
 	ActiveFlags &= ~Flag;
 	return bFlagExisted;
+}
+
+/******************************************************************************
+ * Called on the server to clear flags and commands used to process the turn
+******************************************************************************/
+void UDMActiveCommandsComponent::Reset()
+{
+	ActiveFlags = ECommandFlags::None;
+	ActiveCommands.Empty();
+}
+
+/*/////////////////////////////////////////////////////////////////////////////
+*	Gettors ///////////////////////////////////////////////////////////////////
+*//////////////////////////////////////////////////////////////////////////////
+
+/******************************************************************************
+ * Checks the TArray for a command active on this object and returns it.
+ * returns nullptr if the command is not in use on the object
+******************************************************************************/
+UDMCommand* UDMActiveCommandsComponent::GetCommand(const UClass* pCommandClass, bool IncludeSubclasses)
+{
+	if (pCommandClass == nullptr)
+	{
+		AActor* pOwner = GetOwner();
+		UE_LOG(LogCommands, Warning, TEXT("UDMActiveCommandsComponent::GetCommand: Null class passed in for object %s"),
+			IsValid(pOwner) ? *pOwner->GetName() : TEXT("INVALID OBJECT"))
+			return nullptr;
+	}
+
+	for (UDMCommand* pCurrCommand : ActiveCommands)
+	{
+		if (IncludeSubclasses && pCurrCommand->GetClass()->IsChildOf(pCommandClass))
+		{
+			return pCurrCommand;
+		}
+		else if (pCurrCommand->GetClass() == pCommandClass)
+		{
+			return pCurrCommand;
+		}
+	}
+
+	return nullptr;
 }

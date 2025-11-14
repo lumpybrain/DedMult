@@ -18,7 +18,8 @@ void ADMGameMode::InitGameState() /* override */
 
 	if (ADMGameState* Currstate = Cast<ADMGameState>(GameState))
 	{
-		Currstate->CurrentTeamData = TeamDataAsset;
+		Currstate->TeamData = TeamDataAsset;
+		Currstate->CommandsData = CommandsDataAsset;
 		Currstate->NextNewTeam = EDMPlayerTeam::TeamOne;
 	}
 }

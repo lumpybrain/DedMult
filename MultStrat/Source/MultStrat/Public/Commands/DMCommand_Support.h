@@ -14,7 +14,16 @@ class MULTSTRAT_API UDMCommand_Support : public UDMCommand_MoveShip
 {
 	GENERATED_BODY()
 	
+	//~ Begin UDMCommand Interface
+
+	/** Set our ship to Support */
+	virtual bool RunCommand_Implementation() override;
+
+	/** returns a string with the name of the command, what it does, and what it will operate on */
+	virtual FString CommandDebug_Implementation() const override;
+
+	/** create a new command object based on input data */
+	virtual UDMCommand* CopyCommand(const struct FCommandPacket& Packet) override;
 	
-	
-	
+	//~ End UDMCommand Interface
 };

@@ -28,26 +28,23 @@ UDMCommand_MoveShip::UDMCommand_MoveShip(const FObjectInitializer& ObjectInitial
  * If the node is there, move to it
  * returns true if command executes successfully
 ******************************************************************************/
-bool UDMCommand_MoveShip::RunCommand_Implementation() const /* override */
+bool UDMCommand_MoveShip::RunCommand_Implementation() /* override */
 {
-	// DMTODO: Hey, what happens if two ships are trying to move from planet A to B, and from B to A?
 	if (!IsValid(pTargetNode) || !IsValid(pShip))
 	{
 		return false;
 	}
 
-	if (ADMGalaxyNode* pCurrentNode = pShip->GetCurrentNode())
-	{
-		if (!pCurrentNode->ReserveTraversalTo(pTargetNode, pShip))
-		{
-			return false;
-		}
-	}
-
-
 	pShip->CommandsComponent->AddCommandFlags(ECommandFlags::MovingShip);
 
 	pTargetNode->AddPendingShip(pShip, false, this);
+
+	// check to see if we need to register a command 
+	// (command would already be registered if we are a listen server or P.I.E)
+	if (!pShip->CommandsComponent->GetCommand(UDMCommand_MoveShip::StaticClass()))
+	{
+		pShip->CommandsComponent->RegisterCommand(this);
+	}
 
 	return true;
 }
@@ -62,6 +59,7 @@ void UDMCommand_MoveShip::CommandQueued_Implementation() /* override */
 	pOriginalNode = pShip->GetCurrentNode();
 	pTargetNode->CommandsComponent->AddCommandFlags(CommandFlags);
 	pOriginalNode->CommandsComponent->RegisterCommand(this);
+	pShip->CommandsComponent->RegisterCommand(this);
 }
 
 /******************************************************************************
@@ -75,6 +73,7 @@ void UDMCommand_MoveShip::CommandUnqueued_Implementation() /* override */
 	// that we're done moving
 	pTargetNode->CommandsComponent->RemoveCommandFlags(CommandFlags);
 	pOriginalNode->CommandsComponent->UnregisterCommand(this);
+	pShip->CommandsComponent->UnregisterCommand(this);
 	pOriginalNode = nullptr;
 }
 
@@ -85,7 +84,7 @@ void UDMCommand_MoveShip::CommandUnqueued_Implementation() /* override */
 ******************************************************************************/
 bool UDMCommand_MoveShip::InitializeCommand_Implementation(UDMCommandInit* InitVariables)
 {
-	UDMCommandInitMoveShip* InitMove = Cast<UDMCommandInitMoveShip>(InitVariables);
+	UDMCommandInit_MoveShip* InitMove = Cast<UDMCommandInit_MoveShip>(InitVariables);
 	if (!IsValid(InitMove) || !IsValid(InitMove->pShip))
 	{
 		return false;

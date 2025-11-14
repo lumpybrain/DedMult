@@ -37,6 +37,14 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable)
 	bool CancelCommand(UDMCommand* Command);
+
+	/** 
+	 * Query to get all commands of a specific type that are currently queued
+	 * I.e, # of build commands to determine the local "number" of ships
+	 * returns true if the type is queued, all instances put into the array
+	 */
+	UFUNCTION(BlueprintCallable)
+	bool GetAllCommandsOfType(TSubclassOf<UDMCommand> CommandType, bool IncludeSubclasses, TArray<UDMCommand*>& OutCommands);
 	
 	/**
 	 * Queue a Command in the Command Queue Subsystem

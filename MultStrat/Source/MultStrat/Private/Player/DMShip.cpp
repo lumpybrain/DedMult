@@ -6,6 +6,7 @@
 #include "Components/DMNodeConnectionComponent.h"	// UDMNodeConnectionComponent
 #include "GalaxyObjects/DMGalaxyNode.h"				// ADMGalaxyNode
 #include "Net/UnrealNetwork.h"						// DOREPLIFETIME
+#include "Player/DMPlayerState.h"					// ADMPlayerState
 
 
 /******************************************************************************
@@ -66,4 +67,18 @@ bool ADMShip::IsNodeReachable_Implementation(const ADMGalaxyNode* pTargetNode) c
 	}
 
 	return false;
+}
+
+/******************************************************************************
+ * Change's the ships owning player. 
+ * Note; does not affect the team the ship is on
+******************************************************************************/
+void ADMShip::SetOwningPlayer(ADMPlayerState* NewOwner)
+{
+	OwningPlayer = NewOwner;
+
+	if (IsValid(NewOwner))
+	{
+		OwningPlayer->RegisterNewShip(this);
+	}
 }

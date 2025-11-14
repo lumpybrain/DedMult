@@ -4,6 +4,8 @@
 #include "GalaxyObjects/DMGalaxyNode.h"
 
 #include "Commands/DMCommand.h"						// UDMCommand
+#include "Commands/DMCommand_MoveShip.h"			// UDMCommand_MoveShip
+#include "Commands/DMCommandQueueSubsystem.h"		// LogCommands
 #include "Components/DMCommandFlagsComponent.h"		// UDMActiveCommandsComponent
 #include "Components/DMNodeConnectionComponent.h"	// UDMNodeConnectionComponent
 #include "Components/DMTeamComponent.h"				// EDMPlayerTeam
@@ -29,7 +31,7 @@ void ADMGalaxyNode::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME(ADMGalaxyNode, CurrentShip);
+	DOREPLIFETIME(ADMGalaxyNode, pCurrentShip);
 }
 
 /*/////////////////////////////////////////////////////////////////////////////
@@ -49,8 +51,8 @@ bool ADMGalaxyNode::CanResolveTurn()
 	}
 
 	// 2: Current ship on node is Not Moving or DNE  = resolvable
-	ADMShip* CurrShip = GetShip();
-	if (CurrShip == nullptr || !CurrShip->CommandsComponent->CheckForCommandFlags(ECommandFlags::MovingShip))
+	ADMShip* pCurrShip = GetShip();
+	if (pCurrShip == nullptr || !pCurrShip->CommandsComponent->CheckForCommandFlags(ECommandFlags::MovingShip))
 	{
 		return true;
 	}
@@ -58,12 +60,16 @@ bool ADMGalaxyNode::CanResolveTurn()
 	// 3; current ship Does not matter for result (win or tie for home team without it)  = resolvable
 	// Map of all teams trying to take control of the planet; mapping their team to the main attacking ship and the total power of their fleet
 	TMap<EDMPlayerTeam, TPair<ADMShip*, size_t>> Powers;
-	GetPendingPowers(Powers);
+	EDMPlayerTeam WinningTeam = GetPendingPowers(Powers);
+	if (WinningTeam != TeamComponent->GetTeam())
+	{
+		// we're not winning this node with or without the ship; we can process
+		return true;
+	}
 
-	// Find the winner
+	// Find the power diff
 	size_t HighestPower = 0;
 	size_t PowerDiff = 0;
-	EDMPlayerTeam WinningTeam = EDMPlayerTeam::Invalid;
 	for (auto TeamPower : Powers)
 	{
 		EDMPlayerTeam eTeam = TeamPower.Key;
@@ -79,17 +85,15 @@ bool ADMGalaxyNode::CanResolveTurn()
 		{
 			PowerDiff = Power - HighestPower;
 			HighestPower = Power;
-			WinningTeam = eTeam;
 		}
 		else if (Power == HighestPower)
 		{
 			// No winner in the case of a tie
-			WinningTeam = EDMPlayerTeam::Invalid;
 			PowerDiff = 0;
 		}
 	}
 	if (WinningTeam == TeamComponent->GetTeam() &&
-		PowerDiff >= CurrShip->GetShipPower())
+		PowerDiff >= pCurrShip->GetShipPower())
 	{
 		return true;
 	}
@@ -111,7 +115,7 @@ void ADMGalaxyNode::ResolveTurn()
 
 	// Map of all teams trying to take control of the planet; mapping their team to the main attacking ship and the total power of their fleet
 	TMap<EDMPlayerTeam, TPair<ADMShip*, size_t>> Powers;
-	GetPendingPowers(Powers);
+	EDMPlayerTeam eWinner = GetPendingPowers(Powers);
 
 
 	FString NodeTeam = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)TeamComponent->GetTeam());
@@ -119,8 +123,7 @@ void ADMGalaxyNode::ResolveTurn()
 		*GetName(),
 		*NodeTeam)
 
-	// Find the winner
-	size_t HighestPower = 0;
+	// Print Debug (and find the winning ship for later
 	ADMShip* WinningShip = nullptr;
 	for (auto TeamPower : Powers)
 	{
@@ -139,33 +142,22 @@ void ADMGalaxyNode::ResolveTurn()
 			UE_LOG(LogGalaxy, Display, TEXT("%s"), *AttackDebug)
 			continue;
 		}
+		if (eWinner == eTeam)
+		{
+			WinningShip = pShipPtr;
+			AttackDebug.Append(" and won the battle!");
+		}
 
 		UE_LOG(LogGalaxy, Display, TEXT("%s"), *AttackDebug)
-
-		if (Power > HighestPower)
-		{
-			HighestPower = Power;
-			WinningShip = pShipPtr;
-		}
-		else if (Power == HighestPower)
-		{
-			// No winner in the case of a tie
-			WinningShip = nullptr;
-		}
 	}
 
 	// Declare the winner!
-	if (WinningShip != nullptr)
+	if (eWinner != EDMPlayerTeam::Unowned)
 	{
-		// debug
-		FString WinnerEnumName = StaticEnum<EDMPlayerTeam>()->GetAuthoredNameStringByIndex((int32)WinningShip->TeamComponent->GetTeam());
-		UE_LOG(LogGalaxy, Display, TEXT("	The winner is %s!"),
-			*WinnerEnumName);
-
-		if (IsValid(CurrentShip) && CurrentShip != WinningShip)
+		if (IsValid(pCurrentShip) && pCurrentShip != WinningShip)
 		{
 			// DMTODO: Ship Retreats
-			CurrentShip->Destroy();
+			pCurrentShip->Destroy();
 		}
 
 		SetCurrentShip(WinningShip);
@@ -180,6 +172,84 @@ void ADMGalaxyNode::ResolveTurn()
 }
 
 /******************************************************************************
+ * A ship on this planet is allowed to move or support if and only if
+ * 1: we're not trying to move to a node where we already have an unmoving ship
+ * 2: this ship is moving to a node which is not involved in a attack
+ *		that is strong then the node's defenses
+******************************************************************************/
+void ADMGalaxyNode::PreresolveMovingShips()
+{
+	// no ship? resolved
+	if (!IsValid(pCurrentShip))
+	{
+		return;
+	}
+
+	// the ship isn't moving? resolved
+	UDMCommand* pOurMove = pCurrentShip->CommandsComponent->GetCommand(UDMCommand_MoveShip::StaticClass());
+	if (pOurMove == nullptr)
+	{
+		return;
+	}
+
+	ADMGalaxyNode* pTargetNode = pOurMove->GetTargetNode();
+	check(pTargetNode);
+	if (!IsValid(pTargetNode))
+	{
+		UE_LOG(LogCommands, Error, TEXT("Node %s has a ship on it with a moving command, but that moving command does not have a valid target?"),
+			*GetName())
+		return;
+	}
+
+	// the target doesn't have a ship? we can move. resolved.
+	const ADMShip* pOpposingShip = pTargetNode->GetShip();
+	if (pOpposingShip == nullptr)
+	{
+		return;
+	}
+
+	// ... we're trying to move to a node we control whose ship is not moving? Cancel invalid move
+	if (pOpposingShip->TeamComponent->IsSameTeam(TeamComponent) &&
+		!pOpposingShip->CommandsComponent->CheckForCommandFlags(ECommandFlags::MovingShip))
+	{
+		pCurrentShip->CommandsComponent->RemoveCommandFlags(ECommandFlags::MovingShip);
+		pCurrentShip->CommandsComponent->UnregisterCommand(pOurMove);
+		check(pTargetNode->RemovePendingShip(pCurrentShip));
+		return;
+	}
+
+	// they aren't targetting us? Resolved
+	UDMCommand* pTheirMove = pOpposingShip->CommandsComponent->GetCommand(UDMCommand_MoveShip::StaticClass());
+	if (pTheirMove == nullptr || pTheirMove->GetTargetNode() != this)
+	{
+		return;
+	}
+
+	// The target is attacking with greater than or equal to our defending power?
+	// cancel our move (cancel their move too if its a tie)
+	TMap<EDMPlayerTeam, TPair<ADMShip*, size_t>> Powers;
+	EDMPlayerTeam eWinner = GetPendingPowers(Powers);
+
+	TPair<ADMShip*, size_t>* OurPower = Powers.Find(pCurrentShip->TeamComponent->GetTeam());
+	check(OurPower);
+	TPair<ADMShip*, size_t>* TheirPower = Powers.Find(pOpposingShip->TeamComponent->GetTeam());
+	check(TheirPower);
+
+	if (OurPower->Value <= TheirPower->Value)
+	{
+		pCurrentShip->CommandsComponent->RemoveCommandFlags(ECommandFlags::MovingShip);
+		pCurrentShip->CommandsComponent->UnregisterCommand(pOurMove);
+		check(pTargetNode->RemovePendingShip(pCurrentShip));
+	}
+	if (OurPower->Value == TheirPower->Value)
+	{
+		pOpposingShip->CommandsComponent->RemoveCommandFlags(ECommandFlags::MovingShip);
+		pOpposingShip->CommandsComponent->UnregisterCommand(pTheirMove);
+		check(RemovePendingShip(pOpposingShip));
+	}
+}
+
+/******************************************************************************
  * Used by commands to remove the current ship
  * Can also be called by planet code (i.e during collapse) to free the ship 
  *		from its grip
@@ -187,7 +257,7 @@ void ADMGalaxyNode::ResolveTurn()
 void ADMGalaxyNode::RemoveShip(const UDMCommand* OwningCommand)
 {
 	// Remove the current ship, being mindful if its technically in the middle of destruction/garbage collection
-	if (!IsValid(CurrentShip))
+	if (!IsValid(pCurrentShip))
 	{
 		UE_LOG(LogGalaxy, Warning, TEXT("%s: \"%s\" tried to remove the current ship, Current Ship is invalid."),
 			*GetName(),
@@ -195,10 +265,10 @@ void ADMGalaxyNode::RemoveShip(const UDMCommand* OwningCommand)
 	}
 	else
 	{
-		CurrentShip->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		pCurrentShip->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 	}
 
-	CurrentShip = nullptr;
+	pCurrentShip = nullptr;
 }
 
 /******************************************************************************
@@ -223,28 +293,28 @@ bool ADMGalaxyNode::AddPendingShip(ADMShip* NewShip, bool Supporting, const UDMC
  * Can be called when ships are bounced, or their movement is
  *		invalidated in some other way
 ******************************************************************************/
-bool ADMGalaxyNode::RemovePendingShip(ADMShip* NewShip)
+bool ADMGalaxyNode::RemovePendingShip(const ADMShip* OldShip)
 {
-	return PendingShips.Remove(NewShip) != 0;
+	return PendingShips.Remove(OldShip) != 0;
 }
 
 /******************************************************************************
- * Checks with the connection component to see if the ship can traverse to the 
- *		requested node
- * returns true if successful, false otherwise
+ * Get all the ships currently trying to move onto this planet.
+ * Does not include supporters.
+ * Note, this is ONLY valid while commands are running, and should NOT 
+ *		be queried outside of the command run loop.
+ *
+ * Returns an array of all ships trying to move to the node
 ******************************************************************************/
-bool ADMGalaxyNode::ReserveTraversalTo(ADMGalaxyNode* TargetNode, ADMShip* ReservingShip)
+void ADMGalaxyNode::GetPendingAttackers(TArray<ADMShip*>& OutShips)
 {
-	check(ConnectionManagerComponent)
-	if(!IsValid(ConnectionManagerComponent))
+	for (auto AttemptedShip : PendingShips)
 	{
-		UE_LOG(LogGalaxy, Error, TEXT("%s was probed for traversal by %s to %s, but the connection manager component DNE?"),
-			*GetName(),
-			IsValid(ReservingShip) ? *ReservingShip->GetName() : TEXT("(INVALID SHIP)"),
-			IsValid(TargetNode) ? *TargetNode->GetName() : TEXT("(INVALID NODE)"))
+		if (IsValid(AttemptedShip.Key))
+		{
+			OutShips.Add(AttemptedShip.Key);
+		}
 	}
-
-	return ConnectionManagerComponent->ReserveShipTraversal(TargetNode, ReservingShip);
 }
 
 /*/////////////////////////////////////////////////////////////////////////////
@@ -285,32 +355,33 @@ void ADMGalaxyNode::SetCurrentShip(ADMShip* NewShip)
 	AGameModeBase* pGameModeBase = IsValid(pWorld) ? pWorld->GetAuthGameMode() : nullptr;
 	ADMGameMode* pGameMode = Cast<ADMGameMode>(pGameModeBase);
 	
-	// set the ships position
-	FVector ShipPosition = GetActorLocation();
-	ShipPosition.Z += pGameMode->GetShipSpawnZOffset();
-	NewShip->SetActorLocation(ShipPosition);
-	if (!NewShip->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform))
+	// set the ships position (and account for scale)
+	if (!NewShip->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale))
 	{
 		UE_LOG(LogGalaxy, Error, TEXT("ADMGalaxyNode::SetCurrentShip: %s tried to set its current ship to %s, but the attachment failed"),
 			*GetName(),
 			*NewShip->GetName())
 		return;
 	}
+	float RelativeZ = (1.0f / GetTransform().GetScale3D().Z)* pGameMode->GetShipSpawnZOffset();
+	NewShip->SetActorRelativeLocation(FVector(0, 0, RelativeZ));
 
 	// (TF2 Heavy voice) OURS NOW
-	CurrentShip = NewShip;
+	pCurrentShip = NewShip;
 
 }
 
 /******************************************************************************
  * Calculate the power of all factions attack this node
+ * 
+ * Returns the team with the highest power level; Unowned if there's a tie
 ******************************************************************************/
-void ADMGalaxyNode::GetPendingPowers(TMap<EDMPlayerTeam, TPair<ADMShip*, size_t>>& Powers)
+EDMPlayerTeam ADMGalaxyNode::GetPendingPowers(TMap<EDMPlayerTeam, TPair<ADMShip*, size_t>>& Powers)
 {
 	// Account for the current ship on the planet (if there is one)
-	if (IsValid(CurrentShip))
+	if (IsValid(pCurrentShip))
 	{
-		Powers.Add(CurrentShip->TeamComponent->GetTeam(), TPair<ADMShip*, size_t>(CurrentShip, 1));
+		Powers.Add(pCurrentShip->TeamComponent->GetTeam(), TPair<ADMShip*, size_t>(pCurrentShip, 1));
 	}
 
 	// Process all pending ships
@@ -343,7 +414,7 @@ void ADMGalaxyNode::GetPendingPowers(TMap<EDMPlayerTeam, TPair<ADMShip*, size_t>
 			{
 				++CurrentAttacking->Value;
 			}
-			else if (CurrentAttacking->Key != nullptr)
+			else if (CurrentAttacking->Key == nullptr)
 			{
 				CurrentAttacking->Key = pShipPtr;
 				++CurrentAttacking->Value;
@@ -361,4 +432,23 @@ void ADMGalaxyNode::GetPendingPowers(TMap<EDMPlayerTeam, TPair<ADMShip*, size_t>
 			// Note; it's not like team 1 will KNOW C is attacking A, so they wont know; move or support?
 		}
 	}
+
+	EDMPlayerTeam StrongestTeam = EDMPlayerTeam::Unowned;
+	size_t HighestPower = 0;
+	for (auto iter : Powers)
+	{
+		// if the teams pwoer level is the highest we've seen
+		// and the team has a valid attacking ship
+		if (iter.Value.Value > HighestPower && iter.Value.Key != nullptr)
+		{
+			HighestPower = iter.Value.Value;
+			StrongestTeam = iter.Key;
+		}
+		else if (iter.Value.Value == HighestPower)
+		{
+			StrongestTeam = EDMPlayerTeam::Unowned;
+		}
+	}
+
+	return StrongestTeam;
 }

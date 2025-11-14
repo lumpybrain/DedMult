@@ -58,6 +58,27 @@ bool ADMBaseController::CancelCommand(UDMCommand* pCommand)
 }
 
 /******************************************************************************
+ * Query to get all commands of a specific type that are currently queued
+ * I.e, # of build commands to determine the local "number" of ships
+ * returns true if the type is queued, all instances put into the array
+******************************************************************************/
+bool ADMBaseController::GetAllCommandsOfType(TSubclassOf<UDMCommand> CommandType, bool IncludeSubclasses, TArray<UDMCommand*>& OutCommands)
+{
+	OutCommands.Empty();
+	for (TObjectPtr<UDMCommand> CurrCommand : CommandsForTurn)
+	{
+		UClass* CommandClass = CurrCommand->GetClass();
+		if ((IncludeSubclasses && CommandClass->IsChildOf(CommandType)) ||
+		   (!IncludeSubclasses && CommandClass == CommandType))
+		{
+			OutCommands.Add(CurrCommand);
+		}
+	}
+
+	return !OutCommands.IsEmpty();
+}
+
+/******************************************************************************
  * Queue a Command in the Command Queue Subsystem
  * Run on the server because thats where the subsystem is
  *
@@ -87,7 +108,7 @@ void ADMBaseController::QueueCommandsOnServer_Implementation(const TArray<FComma
 
 		UDMCommand* pSubmittedCommand = pCommandDefault->CopyCommand(CommandInfo);
 
-		pCommandQueue->RegisterCommand(pSubmittedCommand);
+		pCommandQueue->SubsystemRegisterCommand(pSubmittedCommand);
 	}
 
 	ProcessSubmittedTurn();
@@ -109,19 +130,35 @@ void ADMBaseController::SubmitTurn()
 		return;
 	}
 
-	// broadcast the data to the server
 	bTurnSubmittedToServer = true;
 
-	TArray<FCommandPacket> TurnPackets;
-	int CommandCount = 0;
-	for (TObjectPtr<UDMCommand> CurrCommand : CommandsForTurn)
+	// if we are the server (i.e, listen server, PIE)
+	if (GetNetMode() < ENetMode::NM_Client)
 	{
-		TurnPackets.AddDefaulted();
-		TurnPackets[CommandCount].InitializePacket(CurrCommand);
-		++CommandCount;
+		UDMCommandQueueSubsystem* pCommandQueue = UDMCommandQueueSubsystem::Get(this);
+		ensure(pCommandQueue);
+		for (TObjectPtr<UDMCommand> CurrCommand : CommandsForTurn)
+		{
+			pCommandQueue->SubsystemRegisterCommand(CurrCommand);
+		}
+
+		ProcessSubmittedTurn();
+	}
+	// broadcast the data to the server
+	else
+	{
+		TArray<FCommandPacket> TurnPackets;
+		int CommandCount = 0;
+		for (TObjectPtr<UDMCommand> CurrCommand : CommandsForTurn)
+		{
+			TurnPackets.AddDefaulted();
+			TurnPackets[CommandCount].InitializePacket(CurrCommand);
+			++CommandCount;
+		}
+
+		QueueCommandsOnServer(TurnPackets);
 	}
 
-	QueueCommandsOnServer(TurnPackets);
 }
 
 /******************************************************************************
@@ -159,6 +196,9 @@ void ADMBaseController::ServerFinishedProcessingTurn_Implementation()
 		UE_LOG(LogCommands, Error, TEXT("ADMBaseController::ServerFinishedProcessingTurn: Player %s got word back from the server that it finished processing the turn... but we never submitted?"),
 			*pDMPlayerState->GetName())
 	}
+
+	UE_LOG(LogCommands, Display, TEXT("ADMBaseController::ServerFinishedProcessingTurn: Player %s performing cleanup"),
+		*pDMPlayerState->GetName())
 
 	// reset variables
 	for (UDMCommand* pCommand : CommandsForTurn)

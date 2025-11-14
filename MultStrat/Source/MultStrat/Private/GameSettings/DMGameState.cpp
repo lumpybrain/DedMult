@@ -19,7 +19,8 @@ void ADMGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME(ADMGameState, CurrentTeamData);
+	DOREPLIFETIME(ADMGameState, TeamData);
+	DOREPLIFETIME(ADMGameState, CommandsData);
 	DOREPLIFETIME(ADMGameState, NextNewTeam);
 	DOREPLIFETIME(ADMGameState, bTurnProcessing);
 
@@ -28,7 +29,7 @@ void ADMGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 /******************************************************************************
  * Static Gettor
 ******************************************************************************/
-ADMGameState* ADMGameState::Get(UObject* WorldContextObject)
+ADMGameState* ADMGameState::Get(const UObject* WorldContextObject)
 {
 	UWorld* pWorld = WorldContextObject != nullptr ? WorldContextObject->GetWorld() : nullptr;
 	AGameStateBase* pState = pWorld != nullptr ? pWorld->GetGameState() : nullptr;
@@ -48,14 +49,15 @@ void ADMGameState::RegisterPlayerState(APlayerState* PlayerState) /* override */
 {
 	// DMTODO: Player customization
 
-	ADMPlayerState* DMPlayerState = Cast<ADMPlayerState>(PlayerState);
-	if (DMPlayerState == nullptr)
+	ADMPlayerState* pDMPlayerState = Cast<ADMPlayerState>(PlayerState);
+	if (pDMPlayerState == nullptr)
 	{
 		return;
 	}
 
 	// DMTODO: Proper Team Registration!
-	DMPlayerState->TeamComponent->SetTeam(NextNewTeam);
+	pDMPlayerState->TeamComponent->SetTeam(NextNewTeam);
+	pDMPlayerState->InitializeShipPowers(CommandsData->StartingMaxPower, CommandsData->MaxShipPowerCap);
 	NextNewTeam = (EDMPlayerTeam)((uint8)NextNewTeam + 1);
 }
 
@@ -108,9 +110,14 @@ void ADMGameState::CheckAllPlayersTurnsSubmitted_Implementation()
 	UDMCommandQueueSubsystem* CommandQueue = UDMCommandQueueSubsystem::Get(this);
 	ensure(CommandQueue);
 	CommandQueue->ExecuteCommandsForTurn();
+}
 
-	// DMTODO: Maybe make Execute Commands a latent action and have this execute whenever it finishes?
-	// Not really necessary for the light weight, but would be good practice
+/******************************************************************************
+ * Called by PlanetProcessing Subsystem when logic processing for the
+ *		turn is finished
+******************************************************************************/
+void ADMGameState::TurnProcessingFinished()
+{
 	for (int i = 0; i < PlayerArray.Num(); ++i)
 	{
 		if (ADMPlayerState* pPlayer = Cast<ADMPlayerState>(PlayerArray[i]))
@@ -151,14 +158,14 @@ void ADMGameState::GetColorForPlayer(APlayerState* PlayerState, FColor& Output)
 ******************************************************************************/
 void ADMGameState::GetColorForTeam(EDMPlayerTeam Team, FColor& Output)
 {
-	if (!IsValid(CurrentTeamData))
+	if (!IsValid(TeamData))
 	{
-		UE_LOG(LogTemp, Error, TEXT("ADMGameState::GetColorForTeam: Gamestate does not have CurrentTeamData initialized properly!"))
+		UE_LOG(LogTemp, Error, TEXT("ADMGameState::GetColorForTeam: Gamestate does not have TeamData initialized properly!"))
 			Output = FColor::White;
 		return;
 	}
 
-	FColor* TeamColor = CurrentTeamData->PlayerColors.Find(Team);
+	FColor* TeamColor = TeamData->PlayerColors.Find(Team);
 
 	// if the color DNE, print white
 	if (TeamColor != nullptr)

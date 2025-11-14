@@ -8,6 +8,9 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FTurnProcessingFinished);
 
+class ADMGalaxyNode;
+class ADMShip;
+
 /**
  * Used by local clients to process/animate the results of a turn
  * 
@@ -21,6 +24,9 @@ class MULTSTRAT_API UDMPlanetProcessingSubsystem : public UTickableWorldSubsyste
 	GENERATED_BODY()
 	
 public:
+
+	/** Constructor */
+	UDMPlanetProcessingSubsystem();
 
 	/** Static Gettor */
 	static UDMPlanetProcessingSubsystem* Get(UObject* WorldContextObject);
@@ -49,8 +55,15 @@ public:
 	//~=============================================================================
 	// Planet Processing Functions
 
+	/* 
+	 * Register a "floating ship" that has been detatched from its home planet
+	 * without a new planet to call home yet
+	 */
+	void RegisterFloatingShip(ADMShip* FloatingShip);
+
 	/** Called when the subsystem should start moving/animating planets */
 	void StartProcessingPlanetResults();
+
 	
 protected:
 	/** Let the planets start moving their respective ships to them */
@@ -66,8 +79,24 @@ protected:
 	{
 		MoveShips = 0,
 		Combat,
+		Uninitialized
 	};
 
-	EProcessingStage CurrentStage = EProcessingStage::MoveShips;
+	// DMTODO: Subsystem always ticks once in editor when we're starting the world?
+	EProcessingStage CurrentStage = EProcessingStage::Uninitialized;
+
+	UPROPERTY()
+	TArray<TObjectPtr<ADMGalaxyNode>> AllGalaxyNodes;
+
+	/* 
+	 * Floating ships are ships that are caught out in the void of space,
+	 * perhaps because they were trying to move to a node, lost combat there,
+	 * and also lost their home planet during the turn.
+	 * 
+	 * Floating ships are checked at the end of a turn to see if they're docked to a node.
+	 * If not, they are destroyed.
+	 */
+	UPROPERTY()
+	TSet<TObjectPtr<ADMShip>> AllFloatingShips;
 
 };

@@ -6,10 +6,18 @@
 #include "Components\DMNodeConnectionComponent.h"	// ADMConnector
 #include "Kismet/GameplayStatics.h"					// UGameplayStatics
 #include "GalaxyObjects/DMGalaxyNode.h"				// ADMGalaxyNode
+#include "GameSettings/DMGameState.h"				// ADMGameState
 #include "Player/DMShip.h"							// ADMShip
 #include "Components/DMCommandFlagsComponent.h"		// UDMCommandComponent
 
 
+/******************************************************************************
+ * Constructor
+******************************************************************************/
+UDMPlanetProcessingSubsystem::UDMPlanetProcessingSubsystem() : Super()
+{
+	SetTickableTickType(ETickableTickType::Never);
+}
 /******************************************************************************
  * Static Gettor
 ******************************************************************************/
@@ -65,6 +73,15 @@ TStatId UDMPlanetProcessingSubsystem::GetStatId() const
 *	Planet Processing Functions ///////////////////////////////////////////////
 *//////////////////////////////////////////////////////////////////////////////
 
+/*
+ * Register a "floating ship" that has been detatched from its home planet
+ * without a new planet to call home yet
+ */
+void UDMPlanetProcessingSubsystem::RegisterFloatingShip(ADMShip* FloatingShip)
+{
+	AllFloatingShips.Add(FloatingShip);
+}
+
 /******************************************************************************
  * Called when the subsystem should start moving/animating planets
 ******************************************************************************/
@@ -72,6 +89,33 @@ void UDMPlanetProcessingSubsystem::StartProcessingPlanetResults()
 {
 	CurrentStage = EProcessingStage::MoveShips;
 	SetTickableTickType(ETickableTickType::Always);
+
+
+	TArray<AActor*> AllBasicObjects;
+	UGameplayStatics::GetAllActorsOfClass(this, ADMBaseGalaxyObject::StaticClass(), AllBasicObjects);
+	for (AActor* pBaseButActor : AllBasicObjects)
+	{
+		// broadcast changes we're going to make to al clients
+		pBaseButActor->SetNetDormancy(ENetDormancy::DORM_Never);
+
+		if (ADMGalaxyNode* pNode = Cast<ADMGalaxyNode>(pBaseButActor))
+		{
+			pNode->PreresolveMovingShips();
+
+			AllGalaxyNodes.Add(pNode);
+		}
+	}
+
+	// DMTODO: This should be all dirty galaxynodes, that register themselves when commands run
+	TArray<AActor*> AllNodesAsActors;
+	UGameplayStatics::GetAllActorsOfClass(this, ADMGalaxyNode::StaticClass(), AllNodesAsActors);
+	for (AActor* pNodeAsActor : AllNodesAsActors)
+	{
+		ADMGalaxyNode* pNode = Cast<ADMGalaxyNode>(pNodeAsActor);
+		pNode->PreresolveMovingShips();
+
+		AllGalaxyNodes.Add(pNode);
+	}
 }
 
 /******************************************************************************
@@ -88,18 +132,13 @@ void UDMPlanetProcessingSubsystem::MovePendingShipsToPlanets()
 ******************************************************************************/
 void UDMPlanetProcessingSubsystem::ProcessPlanetCombat()
 {
-	// DMTODO: This should be all dirty galaxynodes, that register themselves when commands run
-	TArray<AActor*> AllGalaxyNodes;
-	UGameplayStatics::GetAllActorsOfClass(this, ADMGalaxyNode::StaticClass(), AllGalaxyNodes);
-
 	// keep track as to whether we're going to finish resolving all nodes this cycle
 	bool NodeProcessingFinished = true;
 
 	// Find all resolveable nodes
 	TArray<ADMGalaxyNode*> ResolveableNodes;
-	for (AActor* pCurr : AllGalaxyNodes)
+	for (ADMGalaxyNode* pNode : AllGalaxyNodes)
 	{
-		ADMGalaxyNode* pNode = Cast<ADMGalaxyNode>(pCurr);
 		if (!pNode->CommandsComponent->CheckForCommandFlags(ECommandFlags::Resolved))
 		{
 			if (pNode->CanResolveTurn())
@@ -118,9 +157,8 @@ void UDMPlanetProcessingSubsystem::ProcessPlanetCombat()
 	if (ResolveableNodes.IsEmpty())
 	{
 		NodeProcessingFinished = true;
-		for (AActor* pCurr : AllGalaxyNodes)
+		for (ADMGalaxyNode* pNode : AllGalaxyNodes)
 		{
-			ADMGalaxyNode* pNode = Cast<ADMGalaxyNode>(pCurr);
 			if (!pNode->CommandsComponent->CheckForCommandFlags(ECommandFlags::Resolved))
 			{
 				ResolveableNodes.Add(pNode);
@@ -138,9 +176,8 @@ void UDMPlanetProcessingSubsystem::ProcessPlanetCombat()
 	// if all nodes resolved, move to next step
 	if (NodeProcessingFinished)
 	{
-		for (AActor* pCurr : AllGalaxyNodes)
+		for (ADMGalaxyNode* pNode : AllGalaxyNodes)
 		{
-			ADMGalaxyNode* pNode = Cast<ADMGalaxyNode>(pCurr);
 			pNode->CommandsComponent->RemoveCommandFlags(ECommandFlags::Resolved);
 		}
 		ProcessingFinished();
@@ -153,15 +190,35 @@ void UDMPlanetProcessingSubsystem::ProcessPlanetCombat()
 ******************************************************************************/
 void UDMPlanetProcessingSubsystem::ProcessingFinished()
 {
-	// DMTODO: This should be all dirty Connectors, that register themselves when commands run
-	TArray<AActor*> AllConnectors;
-	UGameplayStatics::GetAllActorsOfClass(this, ADMConnector::StaticClass(), AllConnectors);
-
-	for (AActor* pConnector : AllConnectors)
+	// Tell the gamestate we're done
+	ADMGameState* pState = ADMGameState::Get(this);
+	ensure(pState);
+	if (pState != nullptr)
 	{
-		Cast<ADMConnector>(pConnector)->SetTraversingShip(nullptr);
+		pState->TurnProcessingFinished();
 	}
 
-	// we don't need to tick anymore, we've finished processing
+	TArray<AActor*> AllBasicObjects;
+	UGameplayStatics::GetAllActorsOfClass(this, ADMBaseGalaxyObject::StaticClass(), AllBasicObjects);
+	for (AActor* pBaseButActor : AllBasicObjects)
+	{
+		// Let clients go nuts again
+		pBaseButActor->SetNetDormancy(ENetDormancy::DORM_DormantAll);
+
+		ADMBaseGalaxyObject* pBase = Cast<ADMBaseGalaxyObject>(pBaseButActor);
+		pBase->CommandsComponent->Reset();
+	}
+
+	for (ADMShip* pShip : AllFloatingShips)
+	{
+		if (pShip->GetParentActor() == nullptr)
+		{
+			pShip->Destroy();
+		}
+	}
+
+	// cleanup
+	AllGalaxyNodes.Empty();
+	AllFloatingShips.Empty();
 	SetTickableTickType(ETickableTickType::Never);
 }

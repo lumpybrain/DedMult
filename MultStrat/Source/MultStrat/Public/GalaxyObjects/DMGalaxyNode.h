@@ -27,7 +27,7 @@ public:
 	ADMGalaxyNode(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	/** Replication */
-	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	//~=============================================================================
 	// Command Functions
@@ -36,10 +36,18 @@ public:
 	 * Check all pending ships and see if the math works out where no matter what happens
 	 * in other combats, this node can safely resolve 
 	 */
-	bool CanResolveTurn();
+	virtual bool CanResolveTurn();
 
 	/** Resolve all pending ships after all the commands have executed for a turn */
-	void ResolveTurn();
+	virtual void ResolveTurn();
+
+	/**
+	 * A ship on this planet is allowed to move or support if and only if
+	 * 1: we're not trying to move to a node where we already have an unmoving ship
+	 * 2: this ship is moving to a node which is not involved in a attack
+	 *		that is stronger then the node's defenses
+	 */
+	virtual void PreresolveMovingShips();
 
 	/** 
 	 * Used to remove the current ship
@@ -54,28 +62,33 @@ public:
 	 * Used by commands to register a ship trying to move to this planet for turn 
 	 * returns true if ship successfully registers, false otherwise
 	 */
-	bool AddPendingShip(ADMShip* NewShip, bool IsSupportingTeam, const UDMCommand* OwningCommand);
+	virtual bool AddPendingShip(ADMShip* NewShip, bool IsSupportingTeam, const UDMCommand* OwningCommand);
 
 	/** 
 	 * Can be called when ships are bounced, or their movement is invalidated in some other way
 	 * returns true if the ship existed in the pending ship queue, false otherwise
 	 */
-	bool RemovePendingShip(ADMShip* NewShip);
+	virtual bool RemovePendingShip(const ADMShip* OldShip);
 
 	/**
-	 * Checks with the connection component to see if the ship can traverse to the requested node
-	 * returns true if successful, false otherwise
+	 * Get all the ships currently trying to move onto this planet.
+	 * Does not include supporters.
+	 * Note, this is ONLY valid while commands are running, and should NOT
+	 *		be queried outside of the command run loop.
+	 *
+	 * Returns an array of all ships trying to move to the node
 	 */
-	bool ReserveTraversalTo(ADMGalaxyNode* TargetNode, ADMShip* ReservingShip);
+	UFUNCTION(BlueprintCallable)
+	void GetPendingAttackers(TArray<ADMShip*>& OutShips);
 
 	//~=============================================================================
 	// Properties and Accessors
 
 	UFUNCTION(BlueprintCallable)
-	bool HasShip() const											{ return CurrentShip != nullptr; }
+	virtual bool HasShip() const											{ return pCurrentShip != nullptr; }
 
 	UFUNCTION(BlueprintCallable)
-	ADMShip* GetShip() const										{ return CurrentShip; }
+	virtual ADMShip* GetShip() const										{ return pCurrentShip; }
 
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	UDMNodeConnectionComponent* GetConnectionManager() const		{ return ConnectionManagerComponent; }
@@ -88,8 +101,11 @@ protected:
 	 */
 	virtual void SetCurrentShip(ADMShip* NewShip);
 
-	/** Calculate the power of all factions attack this node */
-	virtual void GetPendingPowers(TMap<EDMPlayerTeam, TPair<ADMShip*, size_t>>& Powers);
+	/**  
+	 * Calculate the power of all factions attack this node
+	 * Returns the team with the highest power level; Unowned if there's a tie 
+	 */
+	EDMPlayerTeam GetPendingPowers(TMap<EDMPlayerTeam, TPair<ADMShip*, size_t>>& Powers);
 
 	/** 
 	 * Current ship docked at this node
@@ -99,7 +115,7 @@ protected:
 	 * INSIDE the ship's class, either via code or blueprints!
 	 */
 	UPROPERTY(Replicated)
-	TObjectPtr<ADMShip> CurrentShip = nullptr;
+	TObjectPtr<ADMShip> pCurrentShip = nullptr;
 
 	/** Compartmentalized management of connected nodes */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
